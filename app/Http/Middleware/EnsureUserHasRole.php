@@ -18,7 +18,7 @@ class EnsureUserHasRole
 
         $user = Auth::user();
 
-        if ($user->role === UserRole::Admin) {
+        if ($user->hasRole(UserRole::Admin)) {
             return $next($request);
         }
 
@@ -27,7 +27,7 @@ class EnsureUserHasRole
             $roles
         );
 
-        if (in_array($user->role, $allowed, true)) {
+        if ($user->hasAnyRole(...$allowed)) {
             return $next($request);
         }
 

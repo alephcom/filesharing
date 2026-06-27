@@ -203,7 +203,7 @@ When Microsoft SSO is enabled (`MICROSOFT_SSO_ENABLED=true`):
 
 - Users sign in with their organization Microsoft account only — there is no password login in the web UI.
 - `UPLOAD_LIMIT_IPS` is ignored; unauthenticated users cannot upload.
-- New users are created automatically on first sign-in with the `user` role. An admin must assign roles and groups via CLI until the admin panel is available (see [Enterprise roadmap](docs/ROADMAP.md)).
+- New users are created automatically on first sign-in with the `user` role. An admin must assign roles and groups via the [admin panel](#admin-panel) at `/admin` (or CLI for bootstrap).
 
 ### Microsoft SSO setup
 
@@ -266,20 +266,32 @@ php artisan migrate
 
 #### 4. Assign roles after first sign-in
 
-The first time a user signs in, an account is created with the default `user` role. Promote users with Artisan:
+The first time a user signs in, an account is created with the default `user` role. Assign additional roles with Artisan:
 
 ```bash
-# List users
+# List users (shows all assigned roles)
 php artisan fs:user:list
 
 # Create a local user (bootstrap / dev only — not for production login)
 php artisan fs:user:create
 
-# Role is set at create time; edit via database or admin UI (Phase 4)
+# Role is set at create time; edit via admin panel (/admin) or CLI
 php artisan fs:user:create adminuser --role=admin
+
+# Assign a role to an existing user (username or email; roles are additive)
+php artisan fs:user:promote you@yourcompany.com --role=admin
+php artisan fs:user:promote you@yourcompany.com --role=reviewer
+
+# Revoke an elevated role (user role cannot be revoked)
+php artisan fs:user:revoke you@yourcompany.com --role=admin
 ```
 
-For existing SSO users, update `role` in the database or wait for the admin panel (Phase 4).
+Users can hold multiple roles (e.g. `user` + `admin` + `reviewer`). Every account always retains the `user` role. Manage roles in the admin panel at `/admin` or via CLI:
+
+```bash
+php artisan fs:user:promote you@yourcompany.com --role=admin
+php artisan fs:user:revoke you@yourcompany.com --role=reviewer
+```
 
 #### 5. Verify
 
@@ -297,6 +309,20 @@ php artisan fs:user:create
 ```
 
 Password login and IP bypass work only when SSO is disabled.
+
+### Admin panel
+
+Admins can manage the organization from `/admin` (Filament). Sign in with an account that has the `admin` role, then open the panel from the footer link or directly at `/admin`.
+
+| Section | Purpose |
+| -------- | -------- |
+| **Users** | Search users; edit role, group membership, and per-user approval override |
+| **Groups** | Create/edit groups; toggle approval requirement and static-link policy; assign members |
+| **Bundles** | View all shares with filters; revoke, extend expiry, or permanently delete |
+| **Reviewers** | Read-only list of users in the reviewer pool |
+| **Branding** | App name, logo, colors, footer text, and legal URLs (stored in `settings`; applied without redeploy) |
+
+Ensure `php artisan storage:link` has been run so uploaded logos are served from `public/storage`.
 
 ## Known issues
 

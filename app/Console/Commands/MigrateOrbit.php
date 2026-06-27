@@ -91,10 +91,10 @@ class MigrateOrbit extends Command
             $user->fill([
                 'username' => $username,
                 'password' => $data['password'] ?? '',
-                'role' => UserRole::User,
                 'last_login_at' => $this->parseTimestamp($data['connected_at'] ?? null),
             ]);
             $user->save();
+            $user->assignRole(UserRole::User);
 
             $map[$username] = $user->id;
             $this->logImported('user', $username);

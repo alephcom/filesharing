@@ -32,10 +32,10 @@ class MicrosoftSsoProvisioner
                 'email' => $email,
                 'azure_oid' => $azureOid,
                 'password' => null,
-                'role' => UserRole::User,
                 'requires_approval' => null,
                 'last_login_at' => now(),
             ]);
+            $user->assignRole(UserRole::User);
 
             return $user;
         }

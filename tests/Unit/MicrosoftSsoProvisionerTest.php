@@ -30,8 +30,8 @@ class MicrosoftSsoProvisionerTest extends TestCase
             'id' => $user->id,
             'email' => 'new.user@yourcompany.com',
             'azure_oid' => 'oid-new-user',
-            'role' => UserRole::User->value,
         ]);
+        $this->assertTrue($user->hasRole(UserRole::User));
         $this->assertSame('newuser', $user->username);
         $this->assertNull($user->password);
         $this->assertNotNull($user->last_login_at);

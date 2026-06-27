@@ -55,11 +55,11 @@ class CreateUser extends Command
         }
 
         try {
-            User::create([
+            $user = User::create([
                 'username' => $login,
                 'password' => Hash::make($password),
-                'role' => UserRole::from($roleInput),
             ]);
+            $user->syncRoles([UserRole::from($roleInput)]);
 
             $this->info('User has been created');
         } catch (Exception $e) {

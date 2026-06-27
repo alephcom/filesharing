@@ -1,0 +1,39 @@
+<?php
+
+namespace Tests\Feature\Filament;
+
+use App\Filament\Pages\ManageBranding;
+use App\Models\User;
+use App\Services\BrandingSettings;
+use Livewire\Livewire;
+use Tests\TestCase;
+
+class AdminBrandingTest extends TestCase
+{
+    public function test_admin_can_save_branding_settings(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        Livewire::actingAs($admin)
+            ->test(ManageBranding::class)
+            ->fillForm([
+                'app_name' => 'Org File Send',
+                'primary_color' => '#112233',
+                'accent_color' => '#445566',
+                'footer_text' => 'Internal use only',
+                'tos_url' => 'https://example.com/terms',
+                'privacy_url' => 'https://example.com/privacy',
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors()
+            ->assertNotified();
+
+        $branding = app(BrandingSettings::class);
+        $this->assertSame('Org File Send', $branding->appName());
+        $this->assertSame('Internal use only', $branding->get(BrandingSettings::KEY_FOOTER_TEXT));
+        $this->assertSame('https://example.com/terms', $branding->get(BrandingSettings::KEY_TOS_URL));
+        $this->assertSame('https://example.com/privacy', $branding->get(BrandingSettings::KEY_PRIVACY_URL));
+        $this->assertSame('17 34 51', $branding->cssVariables()['--color-primary']);
+        $this->assertSame('68 85 102', $branding->cssVariables()['--color-primary-light']);
+    }
+}

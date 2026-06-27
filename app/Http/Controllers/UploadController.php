@@ -150,6 +150,7 @@ class UploadController extends Controller
             } else {
                 $bundle->expires_at = now()->addSeconds((int) $bundle->expiry);
             }
+            $bundle->completed = true;
             $bundle->fullsize = $size;
             $bundle->preview_link = route('bundle.preview', ['bundle' => $bundle, 'auth' => $bundle->preview_token]);
             $bundle->download_link = route('bundle.zip.download', ['bundle' => $bundle, 'auth' => $bundle->preview_token]);

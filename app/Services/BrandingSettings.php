@@ -21,6 +21,8 @@ class BrandingSettings
 
     public const KEY_PRIVACY_URL = 'branding.privacy_url';
 
+    public const KEY_SHOW_CREDIT = 'branding.show_credit';
+
     private const CACHE_KEY = 'branding.settings';
 
     public function get(string $key, ?string $default = null): ?string
@@ -61,6 +63,17 @@ class BrandingSettings
     public function appName(): string
     {
         return $this->get(self::KEY_APP_NAME) ?? config('app.name');
+    }
+
+    public function showCreditFooter(): bool
+    {
+        $value = $this->get(self::KEY_SHOW_CREDIT);
+
+        if ($value === null || $value === '') {
+            return (bool) config('branding.show_credit', true);
+        }
+
+        return $value !== '0';
     }
 
     public function logoUrl(): ?string

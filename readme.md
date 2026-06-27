@@ -186,6 +186,7 @@ In order to configure your application, copy the .env.example file into .env. Th
 | `AZURE_TENANT_ID` | Azure directory (tenant) ID |
 | `AZURE_REDIRECT_URI` | OAuth callback URL (default: `{APP_URL}/auth/microsoft/callback`) |
 | `AZURE_ALLOWED_DOMAINS` | Comma-separated email domains allowed to sign in |
+| `BRANDING_SHOW_CREDIT` | Show the "Made with love" project credit in the footer (`true` / `false`). Can be overridden in the admin Branding settings. |
 
 ## Authentication
 

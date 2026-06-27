@@ -121,4 +121,14 @@ class AdminPanelTest extends TestCase
             ->get('/admin/manage-branding')
             ->assertOk();
     }
+
+    public function test_admin_panel_shows_back_to_app_link(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAsUser($admin)
+            ->get('/admin')
+            ->assertOk()
+            ->assertSee(__('app.nav-back-to-app'));
+    }
 }

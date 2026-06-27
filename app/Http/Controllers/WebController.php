@@ -34,6 +34,8 @@ class WebController extends Controller
 
     public function doLogin(Request $request)
     {
+        abort_if(config('sso.enabled'), 403, 'Password login is disabled when Microsoft SSO is enabled.');
+
         abort_if(! $request->ajax(), 403);
 
         $request->validate([

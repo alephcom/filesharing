@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\MicrosoftAuthController;
 use App\Http\Controllers\BundleController;
 use App\Http\Controllers\UploadController;
 use App\Http\Controllers\WebController;
@@ -8,6 +9,9 @@ use Illuminate\Support\Facades\Route;
 Route::get('/login', [WebController::class, 'login'])->name('login');
 Route::post('/login', [WebController::class, 'doLogin'])->name('login.post');
 Route::get('/logout', [WebController::class, 'logout'])->name('logout');
+
+Route::get('/auth/microsoft', [MicrosoftAuthController::class, 'redirect'])->name('auth.microsoft');
+Route::get('/auth/microsoft/callback', [MicrosoftAuthController::class, 'callback'])->name('auth.microsoft.callback');
 
 Route::middleware(['can.upload'])->group(function () {
     Route::get('/', [WebController::class, 'homepage'])->name('homepage');

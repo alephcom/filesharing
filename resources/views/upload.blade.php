@@ -396,13 +396,22 @@
 				}
 				return count
 			},
+			parseExpiresAt: function(expiresAt) {
+				if (expiresAt == null || expiresAt === '') {
+					return null
+				}
+
+				const parsed = dayjs(expiresAt)
+				return parsed.isValid() ? parsed : null
+			},
 
 			isBundleExpired: function() {
-				if (this.bundle.expires_at == null || this.bundle.expires_at == '') {
+				const expiresAt = this.parseExpiresAt(this.bundle.expires_at)
+				if (expiresAt == null || ! expiresAt.isValid()) {
 					return false;
 				}
 
-				return dayjs.unix(this.bundle.expires_at).isBefore(dayjs())
+				return expiresAt.isBefore(dayjs())
 			}
 		}))
 	})

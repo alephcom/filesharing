@@ -2,10 +2,10 @@
 
 namespace App\Http\Resources;
 
-use App\Helpers\Auth;
 use App\Helpers\Upload;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class BundleResource extends JsonResource
@@ -21,7 +21,7 @@ class BundleResource extends JsonResource
         Do not return private data on the preview page
          */
         $full = false;
-        if (Auth::isLogged() || Upload::canUpload($request->ip())) {
+        if (Auth::check() || Upload::canUpload($request->ip())) {
             $full = true;
         }
 

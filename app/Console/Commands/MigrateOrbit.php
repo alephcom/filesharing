@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Enums\BundleStatus;
+use App\Enums\UserRole;
 use App\Models\Bundle;
 use App\Models\File;
 use App\Models\User;
@@ -90,7 +91,8 @@ class MigrateOrbit extends Command
             $user->fill([
                 'username' => $username,
                 'password' => $data['password'] ?? '',
-                'connected_at' => $this->parseTimestamp($data['connected_at'] ?? null),
+                'role' => UserRole::User,
+                'last_login_at' => $this->parseTimestamp($data['connected_at'] ?? null),
             ]);
             $user->save();
 

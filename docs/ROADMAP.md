@@ -213,49 +213,49 @@ User override always wins over group. Any group requiring approval wins over def
 
 ### Tickets
 
-- [ ] **P2-1** User roles
+- [x] **P2-1** User roles
   - Column: `role` enum `user`, `reviewer`, `admin`
   - Middleware: `role:admin`, `role:reviewer`
   - **Done when:** Role middleware blocks unauthorized routes
 
-- [ ] **P2-2** Groups table
+- [x] **P2-2** Groups table
   - `groups`: `id`, `name`, `slug`, `requires_approval`, `allow_static_links`
   - **Done when:** Groups CRUD via migration/seed
 
-- [ ] **P2-3** User ↔ group pivot
+- [x] **P2-3** User ↔ group pivot
   - `group_user` many-to-many
   - **Done when:** User can belong to multiple groups
 
-- [ ] **P2-4** Per-user approval override
+- [x] **P2-4** Per-user approval override
   - `users.requires_approval` nullable boolean
   - `null` = inherit from groups
   - **Done when:** Column + model accessor documented
 
-- [ ] **P2-5** `ApprovalPolicy` service
+- [x] **P2-5** `ApprovalPolicy` service
   - `ApprovalPolicy::requiresApproval(User $user): bool`
   - Unit tests for: user override, group flag, env default, combined cases
   - **Done when:** All policy cases tested
 
-- [ ] **P2-6** Reviewer pool helper
+- [x] **P2-6** Reviewer pool helper
   - `ReviewerPool::all()` → users where `role = reviewer`
   - **Done when:** Returns correct users
 
-- [ ] **P2-7** User schema for SSO
+- [x] **P2-7** User schema for SSO
   - Columns: `email`, `azure_oid`, `name`, `last_login_at`
   - Unique indexes on `email`, `azure_oid`
   - Relax/remove `alpha_num` username-only model
   - **Done when:** Migration applied
 
-- [ ] **P2-8** Laravel Auth migration
+- [x] **P2-8** Laravel Auth migration
   - Replace `App\Helpers\Auth` with Laravel guard + `Auth::user()`
   - Update `UploadAccess`, `WebController`, views, `BundleResource`
   - **Done when:** Session auth works; helper deprecated or thin wrapper
 
 ### Phase 2 exit criteria
 
-- [ ] `ApprovalPolicy` tested with user override + group + default
-- [ ] Roles enforced by middleware
-- [ ] Laravel Auth is primary auth mechanism
+- [x] `ApprovalPolicy` tested with user override + group + default
+- [x] Roles enforced by middleware
+- [x] Laravel Auth is primary auth mechanism
 
 ---
 
@@ -653,7 +653,7 @@ Update as you go. GitHub issues: [Enterprise Roadmap milestone](https://github.c
 |-------|--------|--------|---------|-----------|-------|
 | P0 — Infrastructure | [#9](https://github.com/horizonagturf/filesharing/issues/9) | `[ ]` | | | |
 | P1 — Database | [#10](https://github.com/horizonagturf/filesharing/issues/10) | `[x]` | 2026-06-27 | 2026-06-27 | Orbit → SQL; `fs:migrate:orbit` |
-| P2 — Roles & policy | [#11](https://github.com/horizonagturf/filesharing/issues/11) | `[ ]` | | | |
+| P2 — Roles & policy | [#11](https://github.com/horizonagturf/filesharing/issues/11) | `[x]` | 2026-06-27 | 2026-06-27 | Roles, groups, ApprovalPolicy, Laravel Auth |
 | P3 — Microsoft SSO | [#13](https://github.com/horizonagturf/filesharing/issues/13) | `[ ]` | | | |
 | P4 — Admin & branding | [#12](https://github.com/horizonagturf/filesharing/issues/12) | `[ ]` | | | |
 | P5 — Approval workflow | [#14](https://github.com/horizonagturf/filesharing/issues/14) | `[ ]` | | | |

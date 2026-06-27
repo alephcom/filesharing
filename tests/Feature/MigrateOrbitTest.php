@@ -64,6 +64,7 @@ class MigrateOrbitTest extends TestCase
 
         $user = User::where('username', 'alice')->first();
         $this->assertNotNull($user);
+        $this->assertNull($user->last_login_at);
 
         $bundle = Bundle::where('slug', 'testbundle')->first();
         $this->assertNotNull($bundle);

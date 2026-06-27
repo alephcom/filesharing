@@ -2,16 +2,28 @@
 
 namespace App\Models;
 
+use App\Enums\UserRole;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 
+/**
+ * @property bool|null $requires_approval When null, approval requirement is inherited from groups and config default.
+ */
 class User extends Authenticatable
 {
+    use HasFactory;
+
     protected $fillable = [
         'username',
+        'name',
         'email',
+        'azure_oid',
         'password',
-        'connected_at',
+        'role',
+        'requires_approval',
+        'last_login_at',
     ];
 
     protected $hidden = [
@@ -21,12 +33,19 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'connected_at' => 'datetime',
+            'role' => UserRole::class,
+            'requires_approval' => 'boolean',
+            'last_login_at' => 'datetime',
         ];
     }
 
     public function bundles(): HasMany
     {
         return $this->hasMany(Bundle::class);
+    }
+
+    public function groups(): BelongsToMany
+    {
+        return $this->belongsToMany(Group::class);
     }
 }

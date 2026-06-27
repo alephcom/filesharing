@@ -103,7 +103,7 @@
 					<p class="text-sm bg-primary rounded-full ml-2 text-white px-3" x-text="Object.keys(bundles).length"></p>
 				</h2>
 
-				@if (App\Helpers\Auth::isLogged())
+				@auth
 					<p class="text-center">
 						<span x-show="bundles == null || Object.keys(bundles).length == 0">@lang('app.no-existing-bundle')</span>
 					</p>
@@ -147,7 +147,7 @@
 						<a href="{{ route('login') }}" class="text-primary font-bold hover:underline">@lang('app.do-login')</a>
 						@lang('app.to-get-bundles')
 					</p>
-				@endif
+				@endauth
 			</div>
 
 			<h2 class="mt-10 font-title text-2xl mb-5 text-primary font-medium uppercase">@lang('app.or-create')</h2>

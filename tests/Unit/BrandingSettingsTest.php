@@ -33,4 +33,30 @@ class BrandingSettingsTest extends TestCase
 
         $this->assertStringContainsString('storage/branding/logo.png', $branding->logoUrl());
     }
+
+    public function test_show_credit_footer_uses_env_default_when_not_overridden(): void
+    {
+        config(['branding.show_credit' => true]);
+
+        $branding = app(BrandingSettings::class);
+
+        $this->assertTrue($branding->showCreditFooter());
+
+        config(['branding.show_credit' => false]);
+
+        $this->assertFalse($branding->showCreditFooter());
+    }
+
+    public function test_show_credit_footer_respects_database_override(): void
+    {
+        config(['branding.show_credit' => false]);
+
+        $branding = app(BrandingSettings::class);
+
+        $branding->set(BrandingSettings::KEY_SHOW_CREDIT, '0');
+        $this->assertFalse($branding->showCreditFooter());
+
+        $branding->set(BrandingSettings::KEY_SHOW_CREDIT, '1');
+        $this->assertTrue($branding->showCreditFooter());
+    }
 }

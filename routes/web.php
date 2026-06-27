@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\AccountController;
+use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\Auth\MicrosoftAuthController;
 use App\Http\Controllers\BundleController;
 use App\Http\Controllers\UploadController;
@@ -12,6 +14,10 @@ Route::get('/logout', [WebController::class, 'logout'])->name('logout');
 
 Route::get('/auth/microsoft', [MicrosoftAuthController::class, 'redirect'])->name('auth.microsoft');
 Route::get('/auth/microsoft/callback', [MicrosoftAuthController::class, 'callback'])->name('auth.microsoft.callback');
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/account', [AccountController::class, 'show'])->name('account');
+});
 
 Route::middleware(['can.upload'])->group(function () {
     Route::get('/', [WebController::class, 'homepage'])->name('homepage');
@@ -28,6 +34,13 @@ Route::middleware(['can.upload'])->group(function () {
             Route::delete('/delete', [UploadController::class, 'deleteBundle'])->name('bundle.delete');
         });
     });
+});
+
+Route::middleware(['auth', 'role:reviewer'])->prefix('/approval')->name('approval.')->group(function () {
+    Route::get('/', [ApprovalController::class, 'index'])->name('index');
+    Route::get('/{approvalRequest}', [ApprovalController::class, 'show'])->name('show');
+    Route::post('/{approvalRequest}/approve', [ApprovalController::class, 'approve'])->name('approve');
+    Route::post('/{approvalRequest}/deny', [ApprovalController::class, 'deny'])->name('deny');
 });
 
 Route::middleware(['access.guest'])->prefix('/bundle/{bundle}')->name('bundle.')->group(function () {

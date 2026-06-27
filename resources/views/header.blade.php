@@ -14,4 +14,5 @@
 		</div>
 	</h1>
 
+	@include('partials.nav-menu')
 </header>

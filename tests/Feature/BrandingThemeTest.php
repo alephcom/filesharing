@@ -32,23 +32,49 @@ class BrandingThemeTest extends TestCase
         $response->assertSee('https://example.com/privacy', false);
     }
 
-    public function test_footer_shows_admin_link_for_admin_user(): void
+    public function test_nav_shows_admin_link_for_admin_user(): void
     {
         $admin = User::factory()->admin()->create();
 
         $this->actingAsUser($admin)
             ->get(route('homepage'))
             ->assertOk()
+            ->assertSee(__('app.nav-admin'))
             ->assertSee('/admin', false);
     }
 
-    public function test_footer_hides_admin_link_for_reviewer_without_admin(): void
+    public function test_nav_hides_admin_panel_label_for_reviewer_without_admin(): void
     {
         $reviewer = User::factory()->reviewer()->create();
 
         $this->actingAsUser($reviewer)
             ->get(route('homepage'))
             ->assertOk()
-            ->assertDontSee('>Admin</a>', false);
+            ->assertDontSee(__('app.nav-admin'));
+    }
+
+    public function test_footer_shows_project_credit_by_default(): void
+    {
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('axeloz');
+    }
+
+    public function test_footer_hides_project_credit_when_disabled_in_database(): void
+    {
+        app(BrandingSettings::class)->set(BrandingSettings::KEY_SHOW_CREDIT, '0');
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertDontSee('axeloz');
+    }
+
+    public function test_footer_hides_project_credit_when_disabled_in_env(): void
+    {
+        config(['branding.show_credit' => false]);
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertDontSee('axeloz');
     }
 }

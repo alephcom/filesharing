@@ -40,6 +40,7 @@ class ManageBranding extends Page implements HasForms
             'footer_text' => $settings[BrandingSettings::KEY_FOOTER_TEXT] ?? '',
             'tos_url' => $settings[BrandingSettings::KEY_TOS_URL] ?? '',
             'privacy_url' => $settings[BrandingSettings::KEY_PRIVACY_URL] ?? '',
+            'show_credit' => $branding->showCreditFooter(),
         ]);
 
         $this->hadLogoInForm = filled($this->data['logo_path'] ?? null);
@@ -75,6 +76,9 @@ class ManageBranding extends Page implements HasForms
                     ->columns(2),
                 Forms\Components\Section::make('Footer & legal')
                     ->schema([
+                        Forms\Components\Toggle::make('show_credit')
+                            ->label('Show project credit')
+                            ->helperText('Shows the "Made with love" attribution in the footer. Defaults from BRANDING_SHOW_CREDIT when not overridden here.'),
                         Forms\Components\Textarea::make('footer_text')
                             ->label('Footer text')
                             ->rows(2)
@@ -114,6 +118,13 @@ class ManageBranding extends Page implements HasForms
         $branding->set(BrandingSettings::KEY_FOOTER_TEXT, $data['footer_text'] ?: null);
         $branding->set(BrandingSettings::KEY_TOS_URL, $data['tos_url'] ?: null);
         $branding->set(BrandingSettings::KEY_PRIVACY_URL, $data['privacy_url'] ?: null);
+
+        $envDefault = (bool) config('branding.show_credit', true);
+        $showCredit = (bool) ($data['show_credit'] ?? true);
+        $branding->set(
+            BrandingSettings::KEY_SHOW_CREDIT,
+            $showCredit === $envDefault ? null : ($showCredit ? '1' : '0'),
+        );
 
         Notification::make()
             ->title('Branding saved')

@@ -11,7 +11,7 @@ class ReviewerPool
     public static function all(): Collection
     {
         return User::query()
-            ->where('role', UserRole::Reviewer)
+            ->whereHas('roles', fn ($query) => $query->where('slug', UserRole::Reviewer->value))
             ->orderBy('name')
             ->orderBy('username')
             ->get();

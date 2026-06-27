@@ -8,7 +8,9 @@
 	document.addEventListener('alpine:init', () => {
 		Alpine.data('bundle', () => ({
 			bundles: [],
-			pending: [],
+			drafts: [],
+			awaitingApproval: [],
+			denied: [],
 			active: [],
 			expired: [],
 			currentBundle: null,
@@ -34,14 +36,24 @@
 							bundle.label = bundle.title
 						}
 
+						if (bundle.status_label) {
+							bundle.label += ' [' + bundle.status_label + ']'
+						}
+
 						if (bundle.expires_at != null && dayjs(bundle.expires_at).isBefore(dayjs())) {
 							this.expired.push(bundle)
 						}
-						else if (bundle.completed == true) {
+						else if (bundle.status === 'pending_approval') {
+							this.awaitingApproval.push(bundle)
+						}
+						else if (bundle.status === 'denied') {
+							this.denied.push(bundle)
+						}
+						else if (bundle.status === 'approved' || bundle.status === 'sent' || bundle.completed == true) {
 							this.active.push(bundle)
 						}
 						else {
-							this.pending.push(bundle)
+							this.drafts.push(bundle)
 						}
 						bundle.label += ' - {{ __('app.created-at') }} '+dayjs(bundle.created_at).fromNow()
 					})
@@ -118,9 +130,25 @@
 					>
 						<option>-</option>
 
-						<template x-if="Object.keys(pending).length > 0">
+						<template x-if="Object.keys(drafts).length > 0">
 							<optgroup label="{{ __('app.pending') }}">
-								<template x-for="bundle in pending">
+								<template x-for="bundle in drafts">
+									<option :value="bundle.slug" x-text="bundle.label"></option>
+								</template>
+							</optgroup>
+						</template>
+
+						<template x-if="Object.keys(awaitingApproval).length > 0">
+							<optgroup label="{{ __('approval.status-pending_approval') }}">
+								<template x-for="bundle in awaitingApproval">
+									<option :value="bundle.slug" x-text="bundle.label"></option>
+								</template>
+							</optgroup>
+						</template>
+
+						<template x-if="Object.keys(denied).length > 0">
+							<optgroup label="{{ __('approval.status-denied') }}">
+								<template x-for="bundle in denied">
 									<option :value="bundle.slug" x-text="bundle.label"></option>
 								</template>
 							</optgroup>

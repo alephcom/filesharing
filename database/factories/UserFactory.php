@@ -22,9 +22,41 @@ class UserFactory extends Factory
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'password' => Hash::make('password'),
-            'role' => UserRole::User,
             'requires_approval' => null,
             'last_login_at' => null,
         ];
+    }
+
+    public function configure(): static
+    {
+        return $this->afterCreating(function (User $user) {
+            if ($user->roles()->count() === 0) {
+                $user->assignRole(UserRole::User);
+            }
+        });
+    }
+
+    public function admin(): static
+    {
+        return $this->afterCreating(function (User $user) {
+            $user->assignRole(UserRole::Admin);
+        });
+    }
+
+    public function reviewer(): static
+    {
+        return $this->afterCreating(function (User $user) {
+            $user->assignRole(UserRole::Reviewer);
+        });
+    }
+
+    /**
+     * @param  array<UserRole|string>  $roles
+     */
+    public function withRoles(array $roles): static
+    {
+        return $this->afterCreating(function (User $user) use ($roles) {
+            $user->syncRoles($roles);
+        });
     }
 }

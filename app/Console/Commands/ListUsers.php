@@ -14,20 +14,21 @@ class ListUsers extends Command
     public function handle()
     {
         $users = User::query()
+            ->with('roles')
             ->orderBy('username')
-            ->get(['username', 'email', 'role', 'last_login_at', 'created_at', 'updated_at']);
+            ->get(['id', 'username', 'email', 'last_login_at', 'created_at', 'updated_at']);
 
         $this->table([
             'username',
             'email',
-            'role',
+            'roles',
             'last_login_at',
             'created_at',
             'updated_at',
         ], $users->map(fn (User $user) => [
             'username' => $user->username,
             'email' => $user->email,
-            'role' => $user->role->value,
+            'roles' => $user->roleSlugs()->implode(', '),
             'last_login_at' => $user->last_login_at,
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,

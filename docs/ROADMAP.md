@@ -267,49 +267,49 @@ User override always wins over group. Any group requiring approval wins over def
 
 ### Tickets
 
-- [ ] **P3-1** Install Socialite + Azure provider
+- [x] **P3-1** Install Socialite + Azure provider
   - `laravel/socialite`, `socialiteproviders/microsoft-azure`
   - `config/services.php` azure block
   - **Done when:** Packages installed; config reads env
 
-- [ ] **P3-2** OAuth routes & controller
+- [x] **P3-2** OAuth routes & controller
   - `GET /auth/microsoft` → redirect
   - `GET /auth/microsoft/callback` → handle token
   - **Done when:** OAuth round-trip works in staging
 
-- [ ] **P3-3** JIT user provisioning
+- [x] **P3-3** JIT user provisioning
   - Create/update user from token: `azure_oid`, `email`, `name`
   - Default role: `user`; default groups: none (admin assigns)
   - **Done when:** First login creates user row
 
-- [ ] **P3-4** Tenant & domain lock
+- [x] **P3-4** Tenant & domain lock
   - Reject if token tenant ≠ `AZURE_TENANT_ID`
   - Reject if email domain ∉ `AZURE_ALLOWED_DOMAINS`
   - **Done when:** Wrong tenant/domain gets friendly error
 
-- [ ] **P3-5** Login UI
+- [x] **P3-5** Login UI
   - "Sign in with Microsoft" button
   - Remove password form when `MICROSOFT_SSO_ENABLED=true`
   - **Done when:** Only SSO login in production
 
-- [ ] **P3-6** Disable IP upload bypass when SSO enforced
+- [x] **P3-6** Disable IP upload bypass when SSO enforced
   - Ignore `UPLOAD_LIMIT_IPS` when SSO enabled
   - **Done when:** Unauthenticated users cannot upload
 
-- [ ] **P3-7** Remove routine local password login
+- [x] **P3-7** Remove routine local password login
   - Disable `POST /login` password flow in prod
   - Keep `fs:user:*` CLI for bootstrap role assignment only
   - **Done when:** No password login in prod config
 
-- [ ] **P3-8** SSO feature tests
+- [x] **P3-8** SSO feature tests
   - Mock Socialite: success, wrong tenant, JIT create
   - **Done when:** Tests in CI
 
 ### Phase 3 exit criteria
 
-- [ ] Org user can sign in via Microsoft
-- [ ] External tenant/domain rejected
-- [ ] No local password or IP bypass in production
+- [x] Org user can sign in via Microsoft
+- [x] External tenant/domain rejected
+- [x] No local password or IP bypass in production
 
 ---
 
@@ -654,7 +654,7 @@ Update as you go. GitHub issues: [Enterprise Roadmap milestone](https://github.c
 | P0 — Infrastructure | [#9](https://github.com/horizonagturf/filesharing/issues/9) | `[ ]` | | | |
 | P1 — Database | [#10](https://github.com/horizonagturf/filesharing/issues/10) | `[x]` | 2026-06-27 | 2026-06-27 | Orbit → SQL; `fs:migrate:orbit` |
 | P2 — Roles & policy | [#11](https://github.com/horizonagturf/filesharing/issues/11) | `[x]` | 2026-06-27 | 2026-06-27 | Roles, groups, ApprovalPolicy, Laravel Auth |
-| P3 — Microsoft SSO | [#13](https://github.com/horizonagturf/filesharing/issues/13) | `[ ]` | | | |
+| P3 — Microsoft SSO | [#13](https://github.com/horizonagturf/filesharing/issues/13) | `[x]` | 2026-06-27 | 2026-06-27 | Socialite Azure; JIT provisioning; tenant/domain lock |
 | P4 — Admin & branding | [#12](https://github.com/horizonagturf/filesharing/issues/12) | `[ ]` | | | |
 | P5 — Approval workflow | [#14](https://github.com/horizonagturf/filesharing/issues/14) | `[ ]` | | | |
 | P6 — Invitations & OTP | [#16](https://github.com/horizonagturf/filesharing/issues/16) | `[ ]` | | | |

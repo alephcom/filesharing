@@ -27,18 +27,15 @@ class MicrosoftSsoProvisioner
         $user = $this->resolveExistingUser($userByOid, $userByEmail);
 
         if ($user === null) {
-            $user = User::create([
+            return User::createWithRoles([
                 'username' => $this->deriveUsername($email),
                 'name' => $name,
                 'email' => $email,
                 'azure_oid' => $azureOid,
                 'password' => null,
-                'role' => UserRole::User,
                 'requires_approval' => null,
                 'last_login_at' => now(),
-            ]);
-
-            return $user;
+            ], [UserRole::User]);
         }
 
         $user->update([

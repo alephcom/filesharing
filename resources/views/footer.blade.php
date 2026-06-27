@@ -1,3 +1,9 @@
+@php
+    $branding = app(\App\Services\BrandingSettings::class);
+    $footerText = $branding->get(\App\Services\BrandingSettings::KEY_FOOTER_TEXT);
+    $tosUrl = $branding->get(\App\Services\BrandingSettings::KEY_TOS_URL);
+    $privacyUrl = $branding->get(\App\Services\BrandingSettings::KEY_PRIVACY_URL);
+@endphp
 <footer class="relative mt-5 h-6 text-xs">
 	@auth
 		<span class="ml-3  text-slate-600">
@@ -6,9 +12,24 @@
 			])
 		</span>
 		[<a href="{{ route('logout') }}" class="text-primary hover:underline">@lang('app.logout')</a>]
-
-
+        @if (auth()->user()->hasRole(\App\Enums\UserRole::Admin))
+            [<a href="{{ url('/admin') }}" class="text-primary hover:underline">Admin</a>]
+        @endif
 	@endauth
+
+    @if ($footerText || $tosUrl || $privacyUrl)
+        <div class="ml-3 mt-2 text-slate-500">
+            @if ($footerText)
+                <span>{{ $footerText }}</span>
+            @endif
+            @if ($tosUrl)
+                <a href="{{ $tosUrl }}" class="text-primary hover:underline" target="_blank" rel="noopener">Terms</a>
+            @endif
+            @if ($privacyUrl)
+                <a href="{{ $privacyUrl }}" class="text-primary hover:underline" target="_blank" rel="noopener">Privacy</a>
+            @endif
+        </div>
+    @endif
 
 	<div class="absolute right-0 top-0 text-[.6rem] text-slate-100 text-right px-2 py-1 italic bg-primary rounded-tl-lg">
 		Made with

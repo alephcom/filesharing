@@ -7,31 +7,32 @@ use Illuminate\Console\Command;
 
 class ListUsers extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'fs:user:list';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
     protected $description = 'Listing of existing users';
 
-    /**
-     * Execute the console command.
-     */
     public function handle()
     {
-        $users = User::get();
+        $users = User::query()
+            ->orderBy('username')
+            ->get(['username', 'email', 'role', 'last_login_at', 'created_at', 'updated_at']);
+
         $this->table([
             'username',
-            'connected_at',
+            'email',
+            'role',
+            'last_login_at',
             'created_at',
             'updated_at',
-        ], $users);
+        ], $users->map(fn (User $user) => [
+            'username' => $user->username,
+            'email' => $user->email,
+            'role' => $user->role->value,
+            'last_login_at' => $user->last_login_at,
+            'created_at' => $user->created_at,
+            'updated_at' => $user->updated_at,
+        ]));
+
+        return self::SUCCESS;
     }
 }

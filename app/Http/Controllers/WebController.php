@@ -2,26 +2,28 @@
 
 namespace App\Http\Controllers;
 
-use App\Helpers\Auth;
+use App\Enums\BundleStatus;
 use App\Http\Resources\BundleResource;
 use App\Models\Bundle;
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class WebController extends Controller
 {
     public function homepage()
     {
-        // Getting user bundles
-        if (Auth::isLogged()) {
-            $bundles = Auth::getLoggedUserDetails()->bundles;
-            if (! empty($bundles) && $bundles->count() > 0) {
-                $bundles = BundleResource::collection($bundles);
+        $bundles = [];
+
+        if (Auth::check()) {
+            $userBundles = Auth::user()->bundles;
+            if ($userBundles->isNotEmpty()) {
+                $bundles = BundleResource::collection($userBundles);
             }
         }
 
         return view('homepage', [
-            'bundles' => $bundles ?? [],
+            'bundles' => $bundles,
         ]);
     }
 
@@ -35,43 +37,37 @@ class WebController extends Controller
         abort_if(! $request->ajax(), 403);
 
         $request->validate([
-            'login' => 'required|alpha_num|min:4|max:40',
+            'login' => 'required|string|min:4|max:40',
             'password' => 'required|min:5|max:100',
         ]);
 
-        try {
-            if (Auth::loginUser($request->login, $request->password) === true) {
-                return response()->json([
-                    'result' => true,
-                ]);
-            }
-        } catch (Exception $e) {
+        if (Auth::attempt([
+            'username' => $request->login,
+            'password' => $request->password,
+        ])) {
+            Auth::user()->update(['last_login_at' => now()]);
+
             return response()->json([
-                'result' => false,
-                'message' => 'Authentication failed, please try again.',
-            ], 403);
+                'result' => true,
+            ]);
         }
 
-        // This should never happen
         return response()->json([
             'result' => false,
-            'message' => 'Unexpected error',
-        ], 500);
+            'message' => 'Authentication failed, please try again.',
+        ], 403);
     }
 
     public function newBundle(Request $request)
     {
-        // Aborting if request is not AJAX
         abort_if(! $request->ajax(), 403);
 
-        if (Auth::isLogged()) {
-            $user = Auth::getLoggedUserDetails();
-        }
+        $user = Auth::user();
 
         try {
             $bundle = new Bundle([
-                'user_username' => $user->username ?? null,
-                'created_at' => time(),
+                'user_id' => $user?->id,
+                'status' => BundleStatus::Draft,
                 'completed' => false,
                 'expiry' => config('sharing.default-expiry', 86400),
                 'expires_at' => null,
@@ -93,6 +89,8 @@ class WebController extends Controller
                 'bundle' => new BundleResource($bundle),
             ]);
         } catch (Exception $e) {
+            report($e);
+
             return response()->json([
                 'result' => false,
                 'message' => $e->getMessage(),
@@ -103,6 +101,8 @@ class WebController extends Controller
     public function logout(Request $request)
     {
         Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return redirect()->route('homepage');
     }

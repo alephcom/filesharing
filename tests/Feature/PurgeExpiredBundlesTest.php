@@ -66,6 +66,49 @@ class PurgeExpiredBundlesTest extends TestCase
         $this->slug = null;
     }
 
+    public function test_purge_keeps_bundle_when_upload_directory_cannot_be_deleted(): void
+    {
+        $this->slug = 'stuckbundle';
+
+        $bundle = Bundle::create([
+            'slug' => $this->slug,
+            'owner_token' => substr(sha1('owner3'), 0, 15),
+            'preview_token' => substr(sha1('preview3'), 0, 15),
+            'completed' => true,
+            'expiry' => 86400,
+            'expires_at' => now()->subDay(),
+            'fullsize' => 7,
+            'max_downloads' => 0,
+            'downloads' => 0,
+        ]);
+
+        $file = File::create([
+            'uuid' => (string) Str::uuid(),
+            'bundle_slug' => $bundle->slug,
+            'original' => 'stuck.txt',
+            'filesize' => 7,
+            'fullpath' => $bundle->slug.'/stuck.txt',
+            'filename' => 'stuck.txt',
+            'created_at' => time(),
+            'status' => true,
+        ]);
+
+        Storage::fake('uploads');
+        Storage::disk('uploads')->put($file->fullpath, 'stuck');
+
+        Storage::shouldReceive('disk')
+            ->with('uploads')
+            ->andReturn($disk = \Mockery::mock());
+
+        $disk->shouldReceive('exists')->with($bundle->slug)->andReturn(true);
+        $disk->shouldReceive('deleteDirectory')->with($bundle->slug)->andReturn(false);
+
+        Artisan::call('fs:bundle:purge');
+
+        $this->assertNotNull(Bundle::find($bundle->slug));
+        $this->assertNotNull(File::find($file->uuid));
+    }
+
     public function test_purge_skips_bundles_without_expiry(): void
     {
         $this->slug = 'foreverbundle';

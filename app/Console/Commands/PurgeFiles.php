@@ -44,15 +44,17 @@ class PurgeFiles extends Command
 
 				$this->comment('-> bundle has expired, must be removed');
 
-				foreach ($bundle->files as $file) {
-					$file->forceDelete();
+				$uploads = Storage::disk('uploads');
+				$storageRemoved = ! $uploads->exists($bundle->slug)
+					|| $uploads->deleteDirectory($bundle->slug);
+
+				if (! $storageRemoved) {
+					$this->error('-> upload directory could not be deleted, keeping bundle for retry');
+					continue;
 				}
 
-				if (Storage::disk('uploads')->deleteDirectory($bundle->slug)) {
-					$this->info('-> upload directory deleted');
-				}
-				else {
-					$this->error('-> upload directory could not be deleted');
+				foreach ($bundle->files as $file) {
+					$file->forceDelete();
 				}
 
 				$bundle->forceDelete();

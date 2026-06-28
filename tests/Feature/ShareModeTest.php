@@ -156,6 +156,33 @@ class ShareModeTest extends TestCase
         $this->assertSame(ShareMode::Invitation, $sharing->defaultShareMode());
     }
 
+    public function test_admin_can_set_blocked_extensions_override(): void
+    {
+        $sharing = app(SharingSettings::class);
+
+        $sharing->setBlockedExtensions(['txt', 'pdf']);
+        $this->assertTrue($sharing->hasBlockedExtensionsOverride());
+        $this->assertSame(['txt', 'pdf'], $sharing->blockedExtensions());
+
+        $sharing->setBlockedExtensions(null);
+        $this->assertFalse($sharing->hasBlockedExtensionsOverride());
+    }
+
+    public function test_blocked_extensions_falls_back_when_config_key_missing(): void
+    {
+        $sharing = app(SharingSettings::class);
+
+        $sharingConfig = config('sharing');
+        unset($sharingConfig['upload_blocked_extensions']);
+        config(['sharing' => $sharingConfig]);
+
+        $extensions = $sharing->blockedExtensions();
+
+        $this->assertContains('exe', $extensions);
+        $this->assertContains('ps1', $extensions);
+        $this->assertNotEmpty($extensions);
+    }
+
     private function createBundle(User $user, ShareMode $shareMode = ShareMode::Invitation): Bundle
     {
         $slug = 'bundle-'.Str::lower(Str::random(8));

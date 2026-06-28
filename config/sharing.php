@@ -41,7 +41,13 @@ return [
 
     'default_share_mode' => env('DEFAULT_SHARE_MODE', 'invitation'),
 
+    'upload_blocked_extensions' => env(
+        'UPLOAD_BLOCKED_EXTENSIONS',
+        \App\Services\SharingSettings::DEFAULT_BLOCKED_EXTENSIONS,
+    ),
+
     'settings_defaults' => [
         \App\Services\SharingSettings::KEY_DEFAULT_SHARE_MODE => null,
+        \App\Services\SharingSettings::KEY_BLOCKED_EXTENSIONS => null,
     ],
 ];

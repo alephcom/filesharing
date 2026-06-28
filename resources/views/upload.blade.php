@@ -11,6 +11,8 @@
     window.__uploadConfig = {
         bundle: @js($bundle),
         canUseStaticLink: @js($canUseStaticLink),
+        canChooseOtp: @js($canChooseOtp),
+        defaultRequireOtp: @js($defaultRequireOtp),
         invitationMode: @js($invitationMode),
         maxFiles: @js(config('sharing.max_files')),
         maxFileSize: @js(Upload::fileMaxSize()),

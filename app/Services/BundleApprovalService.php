@@ -32,7 +32,7 @@ class BundleApprovalService
             throw new InvalidArgumentException(__('approval.bundle-has-no-files'));
         }
 
-        if ($this->invitationService->usesInvitationMode($bundle) && $bundle->recipients()->doesntExist()) {
+        if ($this->invitationService->requiresRecipients($bundle) && $bundle->recipients()->doesntExist()) {
             throw new InvalidArgumentException(__('invitation.recipients-required'));
         }
 
@@ -195,6 +195,13 @@ class BundleApprovalService
     private function publishBundle(Bundle $bundle): void
     {
         if ($this->invitationService->usesInvitationMode($bundle)) {
+            if ($this->invitationService->usesManualShareLinks($bundle)) {
+                $this->generateLinks($bundle);
+                $bundle->status = BundleStatus::Approved;
+
+                return;
+            }
+
             if ($bundle->recipients()->doesntExist()) {
                 throw new InvalidArgumentException(__('invitation.recipients-required'));
             }

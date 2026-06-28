@@ -48,7 +48,8 @@ class GuestAccess
             abort(404);
         }
 
-        if ($this->invitationService->usesInvitationMode($bundle)) {
+        if ($this->invitationService->usesInvitationMode($bundle)
+            && ! $this->invitationService->usesManualShareLinks($bundle)) {
             if (! RecipientAccess::isVerified($bundle)) {
                 Audit::denied($bundle, 'recipient_not_verified', 403);
 

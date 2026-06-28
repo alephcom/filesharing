@@ -51,6 +51,7 @@
         </div>
 
         @include('upload._share-mode')
+        @include('upload._otp-setting', ['canChooseOtp' => $canChooseOtp])
         @include('upload._recipients')
     </div>
 

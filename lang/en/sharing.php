@@ -8,5 +8,8 @@ return [
     'share-mode-static-link-help' => 'Anyone with the link can access files — less secure.',
     'static-link-warning' => 'Less secure — the link alone grants access. Only use for trusted recipients.',
     'static-link-not-allowed' => 'Your group is not permitted to use static links. Contact an administrator.',
+    'require-otp' => 'Require email verification (OTP)',
+    'require-otp-help' => 'When unchecked, recipients access files via their signed invitation link only.',
+    'otp-skip-not-allowed' => 'Your group is not permitted to disable OTP for invitation bundles. Contact an administrator.',
     'default-share-mode' => 'Default share mode',
 ];

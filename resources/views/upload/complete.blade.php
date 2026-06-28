@@ -38,7 +38,7 @@
             </div>
         </template>
 
-        <template x-if="! isInvitationMode() && bundle.preview_link">
+        <template x-if="bundle.preview_link">
             <div>
                 <x-ui.page-header :title="__('app.download-links')" />
 

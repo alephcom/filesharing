@@ -30,6 +30,8 @@ export function registerUploadWizard() {
                 this.bundle.recipients = [];
             }
 
+            this.bundle.require_otp = this.normalizeRequireOtp(this.bundle.require_otp);
+
             if (config.invitationMode && this.bundle.recipients?.length > 0) {
                 this.bundle.recipients_text = this.bundle.recipients.map((r) => r.email).join('\n');
             } else if (config.invitationMode) {
@@ -75,6 +77,22 @@ export function registerUploadWizard() {
             return this.bundle.share_mode === 'invitation';
         },
 
+        normalizeRequireOtp(value) {
+            if (value === true || value === 1 || value === '1' || value === 'true') {
+                return true;
+            }
+
+            if (value === false || value === 0 || value === '0' || value === 'false') {
+                return false;
+            }
+
+            return config.defaultRequireOtp ?? true;
+        },
+
+        otpIsRequired() {
+            return this.isInvitationMode() && this.normalizeRequireOtp(this.bundle.require_otp);
+        },
+
         setShareMode(mode) {
             this.bundle.share_mode = mode;
             config.invitationMode = mode === 'invitation';
@@ -82,39 +100,15 @@ export function registerUploadWizard() {
                 this.bundle.recipients = [];
                 this.bundle.recipients_text = '';
             }
+            if (mode === 'static_link') {
+                this.bundle.require_otp = true;
+            } else {
+                this.bundle.require_otp = this.normalizeRequireOtp(this.bundle.require_otp);
+            }
         },
 
         uploadStep() {
-            let errors = null;
-            ['upload-title', 'upload-description', 'upload-expiry', 'upload-password', 'upload-max-downloads'].forEach((id) => {
-                document.getElementById(id)?.setCustomValidity('');
-            });
-
-            if (this.isInvitationMode()) {
-                document.getElementById('upload-recipients')?.setCustomValidity('');
-                const emails = this.parseRecipients(this.bundle.recipients_text || '');
-                if (emails.length === 0) {
-                    document.getElementById('upload-recipients')?.setCustomValidity('Field is required');
-                    errors = true;
-                }
-            }
-
-            if (! this.bundle.title) {
-                document.getElementById('upload-title')?.setCustomValidity('Field is required');
-                errors = true;
-            }
-
-            if (this.bundle.expiry == null || this.bundle.expiry === '') {
-                document.getElementById('upload-expiry')?.setCustomValidity('Field is required');
-                errors = true;
-            }
-
-            if (this.bundle.max_downloads < 0 || this.bundle.max_downloads > 999) {
-                document.getElementById('upload-max-downloads')?.setCustomValidity('Invalid number of max downloads');
-                errors = true;
-            }
-
-            if (errors === true) {
+            if (! this.validateSettingsStep()) {
                 return false;
             }
 
@@ -124,11 +118,12 @@ export function registerUploadWizard() {
                 data: {
                     expiry: this.bundle.expiry,
                     title: this.bundle.title,
-                    description: this.easymde.value(),
+                    description: this.easymde ? this.easymde.value() : (this.bundle.description ?? ''),
                     max_downloads: this.bundle.max_downloads,
                     password: this.bundle.password,
                     recipients: this.isInvitationMode() ? this.parseRecipients(this.bundle.recipients_text || '') : [],
                     share_mode: this.bundle.share_mode,
+                    require_otp: this.isInvitationMode() ? this.normalizeRequireOtp(this.bundle.require_otp) : true,
                     auth: this.bundle.owner_token,
                 },
             })
@@ -137,7 +132,55 @@ export function registerUploadWizard() {
                     this.step = 2;
                     this.startDropzone();
                 })
-                .catch(() => {});
+                .catch((error) => {
+                    const message = error.response?.data?.message
+                        ?? config.dictResponseError?.replace('{{statusCode}}', error.response?.status ?? '')
+                        ?? 'Request failed';
+
+                    this.showModal(message, () => {});
+                });
+        },
+
+        validateSettingsStep() {
+            let valid = true;
+            const fields = ['upload-title', 'upload-expiry', 'upload-max-downloads'];
+
+            fields.forEach((id) => {
+                document.getElementById(id)?.setCustomValidity('');
+            });
+            document.getElementById('upload-recipients')?.setCustomValidity('');
+
+            if (this.otpIsRequired()) {
+                const emails = this.parseRecipients(this.bundle.recipients_text || '');
+                if (emails.length === 0) {
+                    document.getElementById('upload-recipients')?.setCustomValidity('Field is required');
+                    valid = false;
+                }
+            }
+
+            if (! this.bundle.title) {
+                document.getElementById('upload-title')?.setCustomValidity('Field is required');
+                valid = false;
+            }
+
+            if (this.bundle.expiry == null || this.bundle.expiry === '') {
+                document.getElementById('upload-expiry')?.setCustomValidity('Field is required');
+                valid = false;
+            }
+
+            const maxDownloads = Number(this.bundle.max_downloads);
+            if (Number.isNaN(maxDownloads) || maxDownloads < 0 || maxDownloads > 999) {
+                document.getElementById('upload-max-downloads')?.setCustomValidity('Invalid number of max downloads');
+                valid = false;
+            }
+
+            if (! valid) {
+                [...fields, 'upload-recipients'].forEach((id) => {
+                    document.getElementById(id)?.reportValidity();
+                });
+            }
+
+            return valid;
         },
 
         completeStep() {
@@ -310,9 +353,12 @@ export function registerUploadWizard() {
             return null;
         },
 
-        syncData(bundle) {
+        syncData(payload) {
+            const bundle = payload?.data ?? payload;
+
             if (Object.keys(bundle).length > 0) {
                 this.bundle = bundle;
+                this.bundle.require_otp = this.normalizeRequireOtp(this.bundle.require_otp);
                 if (bundle.share_mode) {
                     config.invitationMode = bundle.share_mode === 'invitation';
                 }

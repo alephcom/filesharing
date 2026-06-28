@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ShareMode;
 use App\Helpers\Upload;
 use App\Http\Resources\BundleResource;
 use App\Http\Resources\FileResource;
@@ -10,6 +11,7 @@ use App\Models\BundleRecipient;
 use App\Models\File;
 use App\Services\BundleApprovalService;
 use App\Services\BundleInvitationService;
+use App\Services\OtpPolicy;
 use App\Services\ShareModePolicy;
 use App\Services\SharingSettings;
 use Exception;
@@ -24,6 +26,7 @@ class UploadController extends Controller
         private readonly BundleApprovalService $approvalService,
         private readonly BundleInvitationService $invitationService,
         private readonly ShareModePolicy $shareModePolicy,
+        private readonly OtpPolicy $otpPolicy,
         private readonly SharingSettings $sharingSettings,
     ) {}
 
@@ -36,6 +39,8 @@ class UploadController extends Controller
             'baseUrl' => config('app.url'),
             'invitationMode' => $this->invitationService->usesInvitationMode($bundle),
             'canUseStaticLink' => $this->shareModePolicy->canUseStaticLinks(Auth::user()),
+            'canChooseOtp' => $this->otpPolicy->canChooseOtpSetting(Auth::user()),
+            'defaultRequireOtp' => $this->otpPolicy->defaultRequireOtp(),
             'blockedExtensions' => $this->sharingSettings->blockedExtensions(),
         ]);
     }
@@ -49,6 +54,7 @@ class UploadController extends Controller
             'recipients' => 'nullable|array',
             'recipients.*' => 'email',
             'share_mode' => 'nullable|in:invitation,static_link',
+            'require_otp' => 'nullable|boolean',
         ]);
 
         $requested = $request->input('share_mode');
@@ -60,6 +66,13 @@ class UploadController extends Controller
                 $shareMode = $this->shareModePolicy->resolveShareMode(Auth::user(), $requested);
             }
 
+            $requireOtp = $shareMode === ShareMode::StaticLink
+                ? true
+                : $this->otpPolicy->resolveRequireOtp(
+                    Auth::user(),
+                    $request->has('require_otp') ? $request->boolean('require_otp') : null,
+                );
+
             $bundle->update([
                 'expiry' => $request->expiry ?? null,
                 'password' => $request->password ?? null,
@@ -67,6 +80,7 @@ class UploadController extends Controller
                 'description' => $request->description ?? null,
                 'max_downloads' => $request->max_downloads ?? 0,
                 'share_mode' => $shareMode,
+                'require_otp' => $requireOtp,
             ]);
 
             if ($request->has('recipients') && $this->invitationService->usesInvitationMode($bundle)) {

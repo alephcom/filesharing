@@ -31,6 +31,7 @@ class ManageSharing extends Page implements HasForms
     {
         $this->form->fill([
             'default_share_mode' => $sharing->defaultShareMode()->value,
+            'invitation_require_otp' => $sharing->invitationRequireOtp(),
             'override_blocked_extensions' => $sharing->hasBlockedExtensionsOverride(),
             'blocked_extensions' => $sharing->hasBlockedExtensionsOverride()
                 ? $sharing->blockedExtensions()
@@ -53,6 +54,13 @@ class ManageSharing extends Page implements HasForms
                             ])
                             ->required()
                             ->native(false),
+                    ]),
+                Forms\Components\Section::make('Invitation security')
+                    ->description('Organization default for invitation bundles. Groups can allow uploaders to disable OTP per bundle when permitted.')
+                    ->schema([
+                        Forms\Components\Toggle::make('invitation_require_otp')
+                            ->label('Require OTP for invitation bundles')
+                            ->default(true),
                     ]),
                 Forms\Components\Section::make('Blocked file types')
                     ->description('Reject uploads whose filename contains a blocked extension.')
@@ -78,6 +86,7 @@ class ManageSharing extends Page implements HasForms
         $mode = ShareMode::from($data['default_share_mode']);
 
         $sharing->setDefaultShareMode($mode);
+        $sharing->setInvitationRequireOtp((bool) ($data['invitation_require_otp'] ?? true));
 
         if ($data['override_blocked_extensions'] ?? false) {
             $sharing->setBlockedExtensions($data['blocked_extensions'] ?? []);

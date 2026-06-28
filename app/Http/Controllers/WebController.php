@@ -7,6 +7,7 @@ use App\Enums\BundleStatus;
 use App\Http\Resources\BundleResource;
 use App\Models\Bundle;
 use App\Services\Audit;
+use App\Services\OtpPolicy;
 use App\Services\ShareModePolicy;
 use Exception;
 use Illuminate\Http\Request;
@@ -16,6 +17,7 @@ class WebController extends Controller
 {
     public function __construct(
         private readonly ShareModePolicy $shareModePolicy,
+        private readonly OtpPolicy $otpPolicy,
     ) {}
 
     public function homepage()
@@ -78,6 +80,7 @@ class WebController extends Controller
                 'user_id' => $user?->id,
                 'status' => BundleStatus::Draft,
                 'share_mode' => $this->shareModePolicy->effectiveShareMode($user),
+                'require_otp' => $this->otpPolicy->defaultRequireOtp(),
                 'completed' => false,
                 'expiry' => config('sharing.default-expiry', 86400),
                 'expires_at' => null,

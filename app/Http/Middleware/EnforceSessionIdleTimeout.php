@@ -19,7 +19,7 @@ class EnforceSessionIdleTimeout
         if ($timeoutMinutes > 0 && Auth::check()) {
             $lastActivity = $request->session()->get('last_activity_at');
 
-            if ($lastActivity !== null && now()->diffInMinutes($lastActivity) >= $timeoutMinutes) {
+            if ($lastActivity !== null && now()->diffInMinutes($lastActivity, absolute: true) >= $timeoutMinutes) {
                 Auth::logout();
                 $request->session()->invalidate();
                 $request->session()->regenerateToken();

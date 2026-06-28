@@ -225,6 +225,32 @@ class InvitationWorkflowTest extends TestCase
         $this->assertDatabaseHas('bundle_recipients', ['email' => 'two@example.com']);
     }
 
+    public function test_invitation_show_does_not_consume_otp_route_rate_limit(): void
+    {
+        Mail::fake();
+        config(['security.otp_route_rate_limit_per_hour' => 1]);
+
+        $user = User::factory()->create(['requires_approval' => false]);
+        $bundle = $this->createBundle($user, BundleStatus::Sent, completed: true);
+        $recipient = $this->addRecipient($bundle, 'guest@example.com', invited: true);
+
+        $signedShow = URL::temporarySignedRoute('invitation.show', now()->addHour(), [
+            'bundle' => $bundle,
+            'recipient' => $recipient,
+        ]);
+
+        $this->get($signedShow)->assertOk();
+        $this->get($signedShow)->assertOk();
+
+        $signedOtp = URL::temporarySignedRoute('invitation.otp.request', now()->addHour(), [
+            'bundle' => $bundle,
+            'recipient' => $recipient,
+        ]);
+
+        $this->post($signedOtp)->assertRedirect();
+        Mail::assertQueued(BundleOtpMail::class);
+    }
+
     public function test_otp_verify_rejects_invalid_code(): void
     {
         $user = User::factory()->create(['requires_approval' => false]);

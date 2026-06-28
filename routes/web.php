@@ -40,10 +40,10 @@ Route::middleware(['can.upload'])->group(function () {
     });
 });
 
-Route::middleware(['signed', 'throttle:otp'])->prefix('/invitation/{bundle}/{recipient}')->name('invitation.')->group(function () {
+Route::middleware(['signed'])->prefix('/invitation/{bundle}/{recipient}')->name('invitation.')->group(function () {
     Route::get('/', [InvitationController::class, 'show'])->name('show');
-    Route::post('/otp', [InvitationController::class, 'requestOtp'])->name('otp.request');
-    Route::post('/verify', [InvitationController::class, 'verifyOtp'])->name('otp.verify');
+    Route::post('/otp', [InvitationController::class, 'requestOtp'])->middleware('throttle:otp')->name('otp.request');
+    Route::post('/verify', [InvitationController::class, 'verifyOtp'])->middleware('throttle:otp')->name('otp.verify');
 });
 
 Route::middleware(['auth', 'role:reviewer'])->prefix('/approval')->name('approval.')->group(function () {

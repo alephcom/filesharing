@@ -5,12 +5,13 @@ namespace App\Services;
 use App\Models\AuditLog;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AuditExporter
 {
+    private const CHUNK_SIZE = 500;
+
     /**
      * @return Builder<AuditLog>
      */
@@ -19,20 +20,28 @@ class AuditExporter
         return AuditLog::query()
             ->with(['bundle', 'actor'])
             ->when($from, fn (Builder $q) => $q->where('created_at', '>=', $from))
-            ->when($to, fn (Builder $q) => $q->where('created_at', '<=', $to->endOfDay()))
+            ->when($to, fn (Builder $q) => $q->where('created_at', '<=', $to->copy()->endOfDay()))
             ->orderBy('created_at');
     }
 
     public function exportToPath(string $path, string $format, ?Carbon $from = null, ?Carbon $to = null): int
     {
-        $logs = $this->query($from, $to)->get();
-        $content = $format === 'json'
-            ? $this->toJson($logs)
-            : $this->toCsv($logs);
+        $directory = dirname($path);
+        if ($directory !== '.' && ! Storage::disk('local')->exists($directory)) {
+            Storage::disk('local')->makeDirectory($directory);
+        }
 
-        Storage::disk('local')->put($path, $content);
+        $handle = fopen(Storage::disk('local')->path($path), 'wb');
 
-        return $logs->count();
+        try {
+            $query = $this->query($from, $to);
+
+            return $format === 'json'
+                ? $this->writeJson($query, $handle)
+                : $this->writeCsv($query, $handle);
+        } finally {
+            fclose($handle);
+        }
     }
 
     public function downloadResponse(string $format, ?Carbon $from = null, ?Carbon $to = null): StreamedResponse
@@ -40,25 +49,26 @@ class AuditExporter
         $filename = 'audit-export-'.now()->format('Y-m-d-His').'.'.$format;
 
         return response()->streamDownload(function () use ($format, $from, $to) {
-            if ($format === 'json') {
-                echo $this->toJson($this->query($from, $to)->get());
+            $output = fopen('php://output', 'wb');
+            $query = $this->query($from, $to);
 
-                return;
+            if ($format === 'json') {
+                $this->writeJson($query, $output);
+            } else {
+                $this->writeCsv($query, $output);
             }
 
-            echo $this->toCsv($this->query($from, $to)->get());
+            fclose($output);
         }, $filename, [
             'Content-Type' => $format === 'json' ? 'application/json' : 'text/csv',
         ]);
     }
 
     /**
-     * @param  Collection<int, AuditLog>  $logs
+     * @param  resource  $handle
      */
-    private function toCsv(Collection $logs): string
+    private function writeCsv(Builder $query, $handle): int
     {
-        $handle = fopen('php://temp', 'r+');
-
         fputcsv($handle, [
             'id',
             'event_type',
@@ -75,37 +85,80 @@ class AuditExporter
             'created_at',
         ]);
 
-        foreach ($logs as $log) {
-            fputcsv($handle, [
-                $log->id,
-                $log->event_type->value,
-                $log->bundle_id,
-                $log->bundle?->slug,
-                $log->file_id,
-                $log->actor_type,
-                $log->actor_id,
-                $log->actor?->username,
-                $log->recipient_email,
-                $log->ip,
-                $log->user_agent,
-                $log->metadata !== null ? json_encode($log->metadata) : null,
-                $log->created_at?->toIso8601String(),
-            ]);
+        $count = 0;
+
+        foreach ($this->iterateLogs($query) as $log) {
+            fputcsv($handle, $this->csvRow($log));
+            $count++;
         }
 
-        rewind($handle);
-        $csv = stream_get_contents($handle);
-        fclose($handle);
-
-        return $csv ?: '';
+        return $count;
     }
 
     /**
-     * @param  Collection<int, AuditLog>  $logs
+     * @param  resource  $handle
      */
-    private function toJson(Collection $logs): string
+    private function writeJson(Builder $query, $handle): int
     {
-        $rows = $logs->map(fn (AuditLog $log) => [
+        fwrite($handle, "[\n");
+
+        $count = 0;
+        $first = true;
+
+        foreach ($this->iterateLogs($query) as $log) {
+            if (! $first) {
+                fwrite($handle, ",\n");
+            }
+
+            $encoded = json_encode($this->rowToArray($log), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            fwrite($handle, $encoded !== false ? $encoded : '{}');
+            $first = false;
+            $count++;
+        }
+
+        fwrite($handle, $count === 0 ? ']' : "\n]");
+
+        return $count;
+    }
+
+    /**
+     * @return \Generator<int, AuditLog>
+     */
+    private function iterateLogs(Builder $query): \Generator
+    {
+        foreach ((clone $query)->lazy(self::CHUNK_SIZE) as $log) {
+            yield $log;
+        }
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function csvRow(AuditLog $log): array
+    {
+        return [
+            $log->id,
+            $log->event_type->value,
+            $log->bundle_id,
+            $log->bundle?->slug,
+            $log->file_id,
+            $log->actor_type,
+            $log->actor_id,
+            $log->actor?->username,
+            $log->recipient_email,
+            $log->ip,
+            $log->user_agent,
+            $log->metadata !== null ? json_encode($log->metadata) : null,
+            $log->created_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rowToArray(AuditLog $log): array
+    {
+        return [
             'id' => $log->id,
             'event_type' => $log->event_type->value,
             'bundle_id' => $log->bundle_id,
@@ -119,8 +172,6 @@ class AuditExporter
             'user_agent' => $log->user_agent,
             'metadata' => $log->metadata,
             'created_at' => $log->created_at?->toIso8601String(),
-        ]);
-
-        return json_encode($rows, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '[]';
+        ];
     }
 }

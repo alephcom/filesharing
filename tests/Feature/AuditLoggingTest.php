@@ -457,13 +457,18 @@ class AuditLoggingTest extends TestCase
         ]);
 
         $this->post($signedOtp)->assertRedirect();
-        $this->post($signedOtp)->assertRedirect();
+        $this->postJson($signedOtp, [], ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertStatus(429)
+            ->assertJsonPath('message', __('invitation.otp-rate-limited'));
 
-        $this->assertDatabaseHas('audit_logs', [
-            'event_type' => AuditEvent::AccessDenied->value,
-            'bundle_id' => $bundle->id,
-            'recipient_email' => 'guest@example.com',
-        ]);
+        $log = AuditLog::query()
+            ->where('event_type', AuditEvent::AccessDenied->value)
+            ->where('recipient_email', 'guest@example.com')
+            ->where('metadata->reason', 'otp_rate_limited')
+            ->first();
+
+        $this->assertNotNull($log);
+        $this->assertSame(429, $log->metadata['status']);
     }
 
     public function test_expired_bundle_access_is_logged(): void

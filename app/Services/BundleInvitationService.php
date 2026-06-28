@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use InvalidArgumentException;
+use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 
 class BundleInvitationService
 {
@@ -89,7 +90,7 @@ class BundleInvitationService
         if (RateLimiter::tooManyAttempts($key, config('invitation.otp_rate_limit_per_hour', 5))) {
             Audit::denied($recipient->bundle, 'otp_rate_limited', 429, $recipient->email);
 
-            throw new InvalidArgumentException(__('invitation.otp-rate-limited'));
+            throw new TooManyRequestsHttpException(3600, __('invitation.otp-rate-limited'));
         }
 
         RateLimiter::hit($key, 3600);

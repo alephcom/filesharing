@@ -558,7 +558,7 @@ class AuditLoggingTest extends TestCase
         $this->assertSame('max_downloads_exceeded', $log->metadata['reason']);
     }
 
-    public function test_zip_download_is_logged(): void
+    public function test_zip_download_failure_is_not_logged(): void
     {
         config(['sharing.default_share_mode' => 'static_link']);
 
@@ -592,10 +592,12 @@ class AuditLoggingTest extends TestCase
         $this->get("/bundle/{$bundle->slug}/download?auth={$bundle->preview_token}")
             ->assertStatus(500);
 
-        $this->assertDatabaseHas('audit_logs', [
+        $this->assertDatabaseMissing('audit_logs', [
             'event_type' => AuditEvent::BundleZipDownloaded->value,
             'bundle_id' => $bundle->id,
         ]);
+
+        $this->assertSame(0, $bundle->fresh()->downloads);
     }
 
     public function test_audit_export_writes_json_file(): void

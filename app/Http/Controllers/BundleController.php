@@ -39,14 +39,6 @@ class BundleController extends Controller
         try {
             // Download of the full bundle
             // We must create a Zip archive
-            $bundle->downloads++;
-            $bundle->save();
-
-            Audit::log(AuditEvent::BundleZipDownloaded, [
-                'bundle' => $bundle,
-                'recipient_email' => RecipientAccess::emailFor($bundle),
-            ]);
-
             $filename = Storage::disk('uploads')->path('').'/'.$bundle->slug.'/bundle.zip';
             if (! file_exists($filename)) {
                 $bundlezip = fopen($filename, 'w');
@@ -102,6 +94,14 @@ class BundleController extends Controller
 
             // Getting file size
             $filesize = filesize($filename);
+
+            $bundle->downloads++;
+            $bundle->save();
+
+            Audit::log(AuditEvent::BundleZipDownloaded, [
+                'bundle' => $bundle,
+                'recipient_email' => RecipientAccess::emailFor($bundle),
+            ]);
 
             // Let's download now
             header('Content-Type: application/octet-stream');

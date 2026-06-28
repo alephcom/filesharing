@@ -519,40 +519,40 @@ Invitation email (signed link, not raw preview_token)
 
 ### Tickets
 
-- [ ] **P7-1** `audit_logs` migration
+- [x] **P7-1** `audit_logs` migration
   - Append-only: `event_type`, `bundle_id`, `file_id`, `actor_type`, `actor_id`, `recipient_email`, `ip`, `user_agent`, `metadata` JSON, `created_at`
   - **Done when:** No update/delete from app code
 
-- [ ] **P7-2** `Audit` service
+- [x] **P7-2** `Audit` service
   - `Audit::log(string $event, array $context)`
   - **Done when:** Single entry point used everywhere
 
-- [ ] **P7-3** Instrument all events
+- [x] **P7-3** Instrument all events
   - Wire into controllers, middleware, admin actions
   - **Done when:** Each event in table above fires
 
-- [ ] **P7-4** Retention purge command
+- [x] **P7-4** Retention purge command
   - `fs:audit:purge` scheduled; reads `AUDIT_RETENTION_DAYS` (`0` = forever)
   - **Done when:** Old rows purged on schedule
 
-- [ ] **P7-5** Admin audit viewer
+- [x] **P7-5** Admin audit viewer
   - Filter: date, user, bundle, event type
   - **Done when:** Paginated admin table
 
-- [ ] **P7-6** Export
+- [x] **P7-6** Export
   - `fs:audit:export --from= --to= --format=csv|json`
   - Admin UI download button
   - **Done when:** Export file generated for date range
 
-- [ ] **P7-7** Failed access logging
+- [x] **P7-7** Failed access logging
   - SSO reject, OTP fail, denied download
   - **Done when:** Failures visible in admin audit view
 
 ### Phase 7 exit criteria
 
-- [ ] Every preview/download creates audit row
-- [ ] Export works for compliance date range
-- [ ] Retention purge respects env
+- [x] Every preview/download creates audit row
+- [x] Export works for compliance date range
+- [x] Retention purge respects env
 
 ---
 
@@ -659,7 +659,7 @@ Update as you go. GitHub issues: [Enterprise Roadmap milestone](https://github.c
 | P4 — Admin & branding | [#12](https://github.com/horizonagturf/filesharing/issues/12) | `[x]` | 2026-06-27 | 2026-06-27 | Filament `/admin`; users, groups, bundles, branding, reviewers |
 | P5 — Approval workflow | [#14](https://github.com/horizonagturf/filesharing/issues/14) | `[x]` | 2026-06-27 | 2026-06-27 | Submit/approve/deny queue; link gating; reviewer notifications |
 | P6 — Invitations & OTP | [#16](https://github.com/horizonagturf/filesharing/issues/16) | `[x]` | 2026-06-27 | 2026-06-27 | Recipients, signed invitations, OTP verify, access gating |
-| P7 — Audit logging | [#15](https://github.com/horizonagturf/filesharing/issues/15) | `[ ]` | | | |
+| P7 — Audit logging | [#15](https://github.com/horizonagturf/filesharing/issues/15) | `[x]` | 2026-06-27 | 2026-06-27 | Audit service, instrumentation, purge/export, Filament viewer |
 | P8 — Hardening | [#17](https://github.com/horizonagturf/filesharing/issues/17) | `[ ]` | | | |
 
 ---

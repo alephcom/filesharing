@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Auth;
 
 use App\Exceptions\SsoAuthenticationException;
 use App\Http\Controllers\Controller;
+use App\Enums\AuditEvent;
+use App\Services\Audit;
 use App\Services\MicrosoftSsoProvisioner;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
@@ -33,6 +35,14 @@ class MicrosoftAuthController extends Controller
 
             Auth::login($user);
 
+            Audit::log(AuditEvent::SsoLogin, [
+                'user' => $user,
+                'metadata' => [
+                    'email' => $user->email,
+                    'azure_oid' => $user->azure_oid,
+                ],
+            ]);
+
             if (config('app.debug')) {
                 Log::debug('SSO sign-in succeeded.', [
                     'user_id' => $user->id,
@@ -49,9 +59,9 @@ class MicrosoftAuthController extends Controller
                 ]);
             }
 
-            return $this->redirectWithError('sso-error-state');
+            return $this->redirectWithError('sso-error-state', 'invalid_state');
         } catch (SsoAuthenticationException $exception) {
-            return $this->redirectWithError($exception->translationKey);
+            return $this->redirectWithError($exception->translationKey, $exception->translationKey);
         } catch (Throwable $exception) {
             report($exception);
 
@@ -62,12 +72,19 @@ class MicrosoftAuthController extends Controller
                 ]);
             }
 
-            return $this->redirectWithError('sso-error-generic');
+            return $this->redirectWithError('sso-error-generic', 'unexpected_error');
         }
     }
 
-    private function redirectWithError(string $translationKey): RedirectResponse
+    private function redirectWithError(string $translationKey, string $reason): RedirectResponse
     {
+        Audit::log(AuditEvent::SsoRejected, [
+            'metadata' => [
+                'reason' => $reason,
+                'translation_key' => $translationKey,
+            ],
+        ]);
+
         return redirect()
             ->route('login')
             ->with('sso_error', __('sso.'.$translationKey));

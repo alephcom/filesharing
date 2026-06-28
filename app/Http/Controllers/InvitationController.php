@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use InvalidArgumentException;
+use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 
 class InvitationController extends Controller
 {
@@ -48,6 +49,12 @@ class InvitationController extends Controller
             }
 
             return back()->with('status', __('invitation.otp-sent'));
+        } catch (TooManyRequestsHttpException $e) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $e->getMessage()], 429);
+            }
+
+            return back()->withErrors(['otp' => $e->getMessage()]);
         } catch (InvalidArgumentException $e) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => $e->getMessage()], 422);

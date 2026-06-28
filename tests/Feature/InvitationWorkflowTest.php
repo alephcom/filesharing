@@ -104,6 +104,13 @@ class InvitationWorkflowTest extends TestCase
 
         Mail::assertNothingSent();
 
+        $bundle->refresh();
+
+        $this->assertSame(BundleStatus::Approved, $bundle->status);
+        $this->assertTrue($bundle->completed);
+        $this->assertNotNull($bundle->preview_link);
+        $this->assertNotNull($bundle->download_link);
+
         $this->get("/bundle/{$bundle->slug}/preview?auth={$bundle->preview_token}")
             ->assertOk()
             ->assertSee('Test bundle');

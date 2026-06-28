@@ -194,14 +194,8 @@ class BundleApprovalService
 
     private function publishBundle(Bundle $bundle): void
     {
-        if ($this->invitationService->usesInvitationMode($bundle)) {
-            if ($this->invitationService->usesManualShareLinks($bundle)) {
-                $this->generateLinks($bundle);
-                $bundle->status = BundleStatus::Approved;
-
-                return;
-            }
-
+        if ($this->invitationService->usesInvitationMode($bundle)
+            && ! $this->invitationService->usesManualShareLinks($bundle)) {
             if ($bundle->recipients()->doesntExist()) {
                 throw new InvalidArgumentException(__('invitation.recipients-required'));
             }
@@ -218,6 +212,7 @@ class BundleApprovalService
 
         $this->generateLinks($bundle);
         $bundle->status = BundleStatus::Approved;
+        $bundle->save();
     }
 
     private function notifyReviewers(ApprovalRequest $request): void

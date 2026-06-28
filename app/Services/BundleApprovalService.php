@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\ApprovalRequestStatus;
+use App\Enums\AuditEvent;
 use App\Enums\BundleStatus;
 use App\Mail\ApprovalRequestSubmittedMail;
 use App\Mail\BundleApprovedMail;
@@ -54,6 +55,12 @@ class BundleApprovalService
 
                 $this->notifyReviewers($request);
 
+                Audit::log(AuditEvent::BundleSubmittedForApproval, [
+                    'bundle' => $bundle,
+                    'user' => $user,
+                    'metadata' => ['approval_request_id' => $request->id],
+                ]);
+
                 return $bundle->fresh(['recipients']);
             }
 
@@ -85,6 +92,15 @@ class BundleApprovalService
             if ($bundle->user?->email) {
                 Mail::to($bundle->user->email)->send(new BundleApprovedMail($bundle));
             }
+
+            Audit::log(AuditEvent::BundleApproved, [
+                'bundle' => $bundle,
+                'user' => $reviewer,
+                'metadata' => [
+                    'approval_request_id' => $request->id,
+                    'reviewer_id' => $reviewer->id,
+                ],
+            ]);
 
             return $bundle->fresh(['recipients']);
         });
@@ -120,6 +136,16 @@ class BundleApprovalService
                 Mail::to($bundle->user->email)->send(new BundleDeniedMail($bundle, $reason));
             }
 
+            Audit::log(AuditEvent::BundleDenied, [
+                'bundle' => $bundle,
+                'user' => $reviewer,
+                'metadata' => [
+                    'approval_request_id' => $request->id,
+                    'reviewer_id' => $reviewer->id,
+                    'reason' => $reason,
+                ],
+            ]);
+
             return $bundle->fresh(['recipients']);
         });
     }
@@ -137,6 +163,12 @@ class BundleApprovalService
         $this->publishBundle($bundle);
         $bundle->completed = true;
         $bundle->save();
+
+        Audit::log(AuditEvent::BundleApproved, [
+            'bundle' => $bundle,
+            'user' => $bundle->user,
+            'metadata' => ['auto_approved' => true],
+        ]);
     }
 
     private function finalizeMetadata(Bundle $bundle): void

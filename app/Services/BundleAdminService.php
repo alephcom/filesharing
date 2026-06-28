@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
+use App\Enums\AuditEvent;
 use App\Enums\BundleStatus;
 use App\Models\Bundle;
+use App\Services\Audit;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
 class BundleAdminService
@@ -11,6 +14,11 @@ class BundleAdminService
     public function revoke(Bundle $bundle): void
     {
         $bundle->update(['status' => BundleStatus::Revoked]);
+
+        Audit::log(AuditEvent::AdminBundleRevoked, [
+            'bundle' => $bundle,
+            'user' => Auth::user(),
+        ]);
     }
 
     public function extendExpiry(Bundle $bundle, int $days): void

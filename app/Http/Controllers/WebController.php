@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\AuditEvent;
 use App\Enums\BundleStatus;
 use App\Http\Resources\BundleResource;
 use App\Models\Bundle;
+use App\Services\Audit;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -84,6 +86,11 @@ class WebController extends Controller
                 'downloads' => 0,
             ]);
             $bundle->save();
+
+            Audit::log(AuditEvent::BundleCreated, [
+                'bundle' => $bundle,
+                'user' => $user,
+            ]);
 
             return response()->json([
                 'result' => true,

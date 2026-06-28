@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AuditEvent;
 use App\Enums\BundleStatus;
 use App\Mail\BundleInvitationMail;
 use App\Mail\BundleOtpMail;
@@ -62,6 +63,11 @@ class BundleInvitationService
         $recipient->update(['invited_at' => now()]);
 
         Mail::to($recipient->email)->send(new BundleInvitationMail($recipient));
+
+        Audit::log(AuditEvent::InvitationSent, [
+            'bundle' => $recipient->bundle,
+            'recipient_email' => $recipient->email,
+        ]);
     }
 
     public function invitationUrl(BundleRecipient $recipient): string
@@ -81,6 +87,8 @@ class BundleInvitationService
         $key = $this->rateLimitKey($recipient);
 
         if (RateLimiter::tooManyAttempts($key, config('invitation.otp_rate_limit_per_hour', 5))) {
+            Audit::denied($recipient->bundle, 'otp_rate_limited', 429, $recipient->email);
+
             throw new InvalidArgumentException(__('invitation.otp-rate-limited'));
         }
 
@@ -95,6 +103,11 @@ class BundleInvitationService
         ]);
 
         Mail::to($recipient->email)->send(new BundleOtpMail($recipient, $code));
+
+        Audit::log(AuditEvent::OtpRequested, [
+            'bundle' => $recipient->bundle,
+            'recipient_email' => $recipient->email,
+        ]);
     }
 
     public function verifyOtp(BundleRecipient $recipient, string $code): void
@@ -106,15 +119,33 @@ class BundleInvitationService
         }
 
         if ($recipient->otp_attempts >= config('invitation.otp_max_attempts', 5)) {
+            Audit::log(AuditEvent::OtpFailed, [
+                'bundle' => $recipient->bundle,
+                'recipient_email' => $recipient->email,
+                'metadata' => ['reason' => 'max_attempts'],
+            ]);
+
             throw new InvalidArgumentException(__('invitation.otp-max-attempts'));
         }
 
         if (! $recipient->hasActiveOtp()) {
+            Audit::log(AuditEvent::OtpFailed, [
+                'bundle' => $recipient->bundle,
+                'recipient_email' => $recipient->email,
+                'metadata' => ['reason' => 'expired'],
+            ]);
+
             throw new InvalidArgumentException(__('invitation.otp-expired'));
         }
 
         if (! Hash::check($code, (string) $recipient->otp_hash)) {
             $recipient->increment('otp_attempts');
+
+            Audit::log(AuditEvent::OtpFailed, [
+                'bundle' => $recipient->bundle,
+                'recipient_email' => $recipient->email,
+                'metadata' => ['reason' => 'invalid_code'],
+            ]);
 
             throw new InvalidArgumentException(__('invitation.otp-invalid'));
         }
@@ -127,6 +158,11 @@ class BundleInvitationService
         ]);
 
         RecipientAccess::grant($recipient);
+
+        Audit::log(AuditEvent::OtpVerified, [
+            'bundle' => $recipient->bundle,
+            'recipient_email' => $recipient->email,
+        ]);
     }
 
     public function resendInvitation(BundleRecipient $recipient): void

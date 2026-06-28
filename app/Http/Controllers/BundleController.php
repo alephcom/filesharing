@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\AuditEvent;
 use App\Helpers\Upload;
 use App\Http\Resources\BundleResource;
 use App\Models\Bundle;
+use App\Services\Audit;
+use App\Services\RecipientAccess;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -16,6 +19,11 @@ class BundleController extends Controller
     // The bundle content preview
     public function previewBundle(Request $request, Bundle $bundle)
     {
+        Audit::log(AuditEvent::BundlePreviewed, [
+            'bundle' => $bundle,
+            'recipient_email' => RecipientAccess::emailFor($bundle),
+        ]);
+
         return view('download', [
             'bundle' => new BundleResource($bundle),
         ]);
@@ -33,6 +41,11 @@ class BundleController extends Controller
             // We must create a Zip archive
             $bundle->downloads++;
             $bundle->save();
+
+            Audit::log(AuditEvent::BundleZipDownloaded, [
+                'bundle' => $bundle,
+                'recipient_email' => RecipientAccess::emailFor($bundle),
+            ]);
 
             $filename = Storage::disk('uploads')->path('').'/'.$bundle->slug.'/bundle.zip';
             if (! file_exists($filename)) {

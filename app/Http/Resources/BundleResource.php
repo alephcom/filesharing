@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use App\Helpers\Upload;
 use App\Services\ApprovalPolicy;
 use App\Services\BundleInvitationService;
+use App\Services\OtpPolicy;
 use App\Services\ShareModePolicy;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -28,11 +29,13 @@ class BundleResource extends JsonResource
             $full = true;
         }
 
-        $invitationMode = app(BundleInvitationService::class)->usesInvitationMode($this->resource);
+        $invitationService = app(BundleInvitationService::class);
+        $invitationMode = $invitationService->usesInvitationMode($this->resource);
+        $manualShareLinks = $invitationService->usesManualShareLinks($this->resource);
         $previewLink = $this->preview_link;
         $downloadLink = $this->download_link;
 
-        if ($invitationMode) {
+        if ($invitationMode && ! $manualShareLinks) {
             if ($full) {
                 $previewLink = null;
                 $downloadLink = null;
@@ -61,6 +64,8 @@ class BundleResource extends JsonResource
             'download_link' => $downloadLink,
             'invitation_mode' => $invitationMode,
             'share_mode' => $this->share_mode?->value,
+            'require_otp' => $this->when($full === true, (bool) $this->require_otp),
+            'can_choose_otp' => $this->when($full === true && Auth::check(), fn () => app(OtpPolicy::class)->canChooseOtpSetting(Auth::user())),
             'can_use_static_link' => $this->when($full === true && Auth::check(), fn () => app(ShareModePolicy::class)->canUseStaticLinks(Auth::user())),
             'recipients' => $this->when($full === true, fn () => $this->recipients->map(fn ($recipient) => [
                 'id' => $recipient->id,

@@ -43,6 +43,8 @@ class GroupResource extends Resource
                     ->label('Requires approval'),
                 Forms\Components\Toggle::make('allow_static_links')
                     ->label('Allow static links'),
+                Forms\Components\Toggle::make('allow_invitation_without_otp')
+                    ->label('Allow invitation without OTP'),
                 Forms\Components\Select::make('users')
                     ->relationship('users', 'username')
                     ->multiple()
@@ -66,6 +68,9 @@ class GroupResource extends Resource
                     ->boolean(),
                 Tables\Columns\IconColumn::make('allow_static_links')
                     ->label('Static links')
+                    ->boolean(),
+                Tables\Columns\IconColumn::make('allow_invitation_without_otp')
+                    ->label('No OTP')
                     ->boolean(),
                 Tables\Columns\TextColumn::make('users_count')
                     ->counts('users')

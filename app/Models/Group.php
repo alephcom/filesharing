@@ -12,6 +12,7 @@ class Group extends Model
         'slug',
         'requires_approval',
         'allow_static_links',
+        'allow_invitation_without_otp',
     ];
 
     protected function casts(): array
@@ -19,6 +20,7 @@ class Group extends Model
         return [
             'requires_approval' => 'boolean',
             'allow_static_links' => 'boolean',
+            'allow_invitation_without_otp' => 'boolean',
         ];
     }
 

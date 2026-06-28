@@ -8,6 +8,7 @@ use App\Models\Bundle;
 use App\Models\User;
 use App\Services\SharingSettings;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -31,6 +32,13 @@ class UploadWorkflowTest extends TestCase
         config(['approval.required_default' => false]);
 
         $user = User::factory()->create(['requires_approval' => false]);
+        $group = \App\Models\Group::create([
+            'name' => 'Trusted upload',
+            'slug' => 'trusted-upload',
+            'requires_approval' => false,
+            'allow_static_links' => true,
+        ]);
+        $user->groups()->attach($group);
         $slug = 'upload-'.Str::lower(Str::random(8));
         $this->slugs[] = $slug;
 
@@ -60,6 +68,7 @@ class UploadWorkflowTest extends TestCase
                 'expiry' => '86400',
                 'max_downloads' => 0,
                 'password' => null,
+                'share_mode' => ShareMode::StaticLink->value,
                 'auth' => $bundle->owner_token,
             ], $headers)
             ->assertOk()
@@ -95,10 +104,12 @@ class UploadWorkflowTest extends TestCase
     public function test_guest_can_upload_and_complete_bundle_when_ip_upload_allowed(): void
     {
         Storage::fake('uploads');
+        Mail::fake();
         config([
             'sso.enabled' => false,
             'sharing.upload_ip_limit' => null,
             'approval.required_default' => true,
+            'sharing.default_share_mode' => 'invitation',
         ]);
 
         $slug = 'guest-'.Str::lower(Str::random(8));
@@ -109,7 +120,8 @@ class UploadWorkflowTest extends TestCase
             'slug' => $slug,
             'owner_token' => substr(sha1($slug.'owner'), 0, 15),
             'preview_token' => substr(sha1($slug.'preview'), 0, 15),
-            'share_mode' => ShareMode::StaticLink,
+            'share_mode' => ShareMode::Invitation,
+            'require_otp' => true,
             'completed' => false,
             'status' => BundleStatus::Draft,
             'expiry' => '86400',
@@ -129,6 +141,7 @@ class UploadWorkflowTest extends TestCase
             'expiry' => '86400',
             'max_downloads' => 0,
             'password' => null,
+            'recipients' => ['guest@example.com'],
             'auth' => $bundle->owner_token,
         ], $headers)
             ->assertOk()
@@ -147,12 +160,13 @@ class UploadWorkflowTest extends TestCase
             'auth' => $bundle->owner_token,
         ], $headers)
             ->assertOk()
-            ->assertJsonPath('status', BundleStatus::Approved->value)
+            ->assertJsonPath('status', BundleStatus::Sent->value)
             ->assertJsonPath('completed', true);
 
         $bundle->refresh();
-        $this->assertNotNull($bundle->preview_link);
+        $this->assertNull($bundle->preview_link);
         $this->assertDatabaseMissing('approval_requests', ['bundle_id' => $bundle->id]);
+        Mail::assertQueued(\App\Mail\BundleInvitationMail::class);
     }
 
     public function test_owned_bundle_completion_requires_authentication(): void

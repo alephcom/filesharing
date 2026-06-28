@@ -13,6 +13,8 @@ class SharingSettings
 
     public const KEY_BLOCKED_EXTENSIONS = 'sharing.upload_blocked_extensions';
 
+    public const KEY_INVITATION_REQUIRE_OTP = 'sharing.invitation_require_otp';
+
     public const DEFAULT_BLOCKED_EXTENSIONS = 'exe,bat,cmd,com,scr,pif,msi,dll,ps1,ps2,psc1,psc2,vbs,vbe,jse,wsf,wsh,reg,inf,cpl';
 
     private const CACHE_KEY = 'sharing.settings';
@@ -38,6 +40,27 @@ class SharingSettings
         $this->set(
             self::KEY_DEFAULT_SHARE_MODE,
             $mode === $envDefault ? null : $mode->value,
+        );
+    }
+
+    public function invitationRequireOtp(): bool
+    {
+        $stored = $this->get(self::KEY_INVITATION_REQUIRE_OTP);
+
+        if ($stored !== null) {
+            return filter_var($stored, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        return (bool) config('sharing.invitation_require_otp', true);
+    }
+
+    public function setInvitationRequireOtp(bool $required): void
+    {
+        $envDefault = (bool) config('sharing.invitation_require_otp', true);
+
+        $this->set(
+            self::KEY_INVITATION_REQUIRE_OTP,
+            $required === $envDefault ? null : ($required ? '1' : '0'),
         );
     }
 

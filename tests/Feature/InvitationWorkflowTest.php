@@ -85,6 +85,37 @@ class InvitationWorkflowTest extends TestCase
             ->assertJsonPath('message', __('invitation.recipients-required'));
     }
 
+    public function test_complete_without_recipients_generates_links_when_otp_disabled(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create(['requires_approval' => false]);
+        $bundle = $this->createBundle($user);
+        $bundle->update(['require_otp' => false]);
+
+        $this->actingAsUser($user)
+            ->postJson("/upload/{$bundle->slug}/complete", [
+                'auth' => $bundle->owner_token,
+            ], $this->uploadHeaders($bundle))
+            ->assertOk()
+            ->assertJsonPath('status', BundleStatus::Approved->value)
+            ->assertJsonPath('preview_link', fn ($link) => str_contains($link, 'auth='.$bundle->preview_token))
+            ->assertJsonCount(0, 'recipients');
+
+        Mail::assertNothingSent();
+
+        $bundle->refresh();
+
+        $this->assertSame(BundleStatus::Approved, $bundle->status);
+        $this->assertTrue($bundle->completed);
+        $this->assertNotNull($bundle->preview_link);
+        $this->assertNotNull($bundle->download_link);
+
+        $this->get("/bundle/{$bundle->slug}/preview?auth={$bundle->preview_token}")
+            ->assertOk()
+            ->assertSee('Test bundle');
+    }
+
     public function test_reviewer_approval_sends_invitations_in_invitation_mode(): void
     {
         Mail::fake();
@@ -276,6 +307,43 @@ class InvitationWorkflowTest extends TestCase
         $this->assertNull($recipient->fresh()->verified_at);
     }
 
+    public function test_signed_invitation_auto_grants_access_when_otp_not_required(): void
+    {
+        $user = User::factory()->create(['requires_approval' => false]);
+        $bundle = $this->createBundle($user, BundleStatus::Sent, completed: true);
+        $bundle->update(['require_otp' => false]);
+        $recipient = $this->addRecipient($bundle, 'guest@example.com', invited: true);
+
+        $signedShow = URL::temporarySignedRoute('invitation.show', now()->addHour(), [
+            'bundle' => $bundle,
+            'recipient' => $recipient,
+        ]);
+
+        $this->get($signedShow)
+            ->assertRedirect(route('bundle.preview', ['bundle' => $bundle]));
+
+        $this->assertNotNull($recipient->fresh()->verified_at);
+
+        $this->get("/bundle/{$bundle->slug}/preview")
+            ->assertOk()
+            ->assertSee('Test bundle');
+    }
+
+    public function test_otp_routes_return_not_found_when_otp_not_required(): void
+    {
+        $user = User::factory()->create(['requires_approval' => false]);
+        $bundle = $this->createBundle($user, BundleStatus::Sent, completed: true);
+        $bundle->update(['require_otp' => false]);
+        $recipient = $this->addRecipient($bundle, 'guest@example.com', invited: true);
+
+        $signedOtp = URL::temporarySignedRoute('invitation.otp.request', now()->addHour(), [
+            'bundle' => $bundle,
+            'recipient' => $recipient,
+        ]);
+
+        $this->post($signedOtp)->assertNotFound();
+    }
+
     private function createBundle(
         User $user,
         BundleStatus $status = BundleStatus::Draft,
@@ -290,6 +358,7 @@ class InvitationWorkflowTest extends TestCase
             'owner_token' => substr(sha1($slug.'owner'), 0, 15),
             'preview_token' => substr(sha1($slug.'preview'), 0, 15),
             'share_mode' => ShareMode::Invitation,
+            'require_otp' => true,
             'completed' => $completed,
             'status' => $status,
             'expiry' => '86400',

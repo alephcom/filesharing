@@ -25,6 +25,8 @@ Manual QA script for enterprise deployment sign-off. Run against staging before 
 
 - [ ] Invitation + OTP to external email
 - [ ] Invitation + OTP to internal email
+- [ ] Invitation without OTP (group with `allow_invitation_without_otp=true`): signed link grants access directly
+- [ ] Invitation without OTP and no recipients: complete shows copyable preview/download links
 - [ ] Unverified recipient cannot preview or download
 
 ## Share modes
@@ -34,6 +36,8 @@ Manual QA script for enterprise deployment sign-off. Run against staging before 
 - [ ] User without allowed group cannot select static link mode
 - [ ] Static link preview works with `?auth={preview_token}` on approved bundle
 - [ ] Static link UI shows less-secure warning
+- [ ] Org default `INVITATION_REQUIRE_OTP=false` creates bundles without OTP step
+- [ ] Upload OTP toggle visible when group allows or org default is false
 
 ## Admin & operations
 

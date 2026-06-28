@@ -68,7 +68,10 @@ class ApprovalWorkflowTest extends TestCase
     public function test_approved_bundle_expiry_starts_at_approval_not_submit(): void
     {
         Mail::fake();
-        config(['approval.required_default' => true]);
+        config([
+            'approval.required_default' => true,
+            'security.session_idle_timeout' => 0,
+        ]);
 
         $uploader = User::factory()->create(['requires_approval' => true]);
         $reviewer = User::factory()->reviewer()->create();

@@ -29,6 +29,12 @@ class InvitationController extends Controller
             return redirect()->route('bundle.preview', ['bundle' => $bundle]);
         }
 
+        if (! $this->invitationService->requiresOtp($bundle)) {
+            $this->invitationService->grantAccessWithoutOtp($recipient);
+
+            return redirect()->route('bundle.preview', ['bundle' => $bundle]);
+        }
+
         return view('invitation.show', [
             'bundle' => $bundle,
             'recipient' => $recipient,
@@ -40,6 +46,7 @@ class InvitationController extends Controller
     {
         abort_unless($recipient->bundle_id === $bundle->id, 404);
         abort_unless($bundle->isShareable(), 404);
+        abort_if(! $this->invitationService->requiresOtp($bundle), 404);
 
         try {
             $this->invitationService->requestOtp($recipient);
@@ -68,6 +75,7 @@ class InvitationController extends Controller
     {
         abort_unless($recipient->bundle_id === $bundle->id, 404);
         abort_unless($bundle->isShareable(), 404);
+        abort_if(! $this->invitationService->requiresOtp($bundle), 404);
 
         $request->validate([
             'code' => 'required|string|size:6',

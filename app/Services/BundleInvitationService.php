@@ -27,6 +27,36 @@ class BundleInvitationService
         return app(SharingSettings::class)->defaultShareMode() === ShareMode::Invitation;
     }
 
+    public function requiresOtp(Bundle $bundle): bool
+    {
+        return $this->usesInvitationMode($bundle) && (bool) $bundle->require_otp;
+    }
+
+    public function usesManualShareLinks(Bundle $bundle): bool
+    {
+        return $this->usesInvitationMode($bundle)
+            && ! $bundle->require_otp
+            && $bundle->recipients()->doesntExist();
+    }
+
+    public function requiresRecipients(Bundle $bundle): bool
+    {
+        return $this->usesInvitationMode($bundle) && (bool) $bundle->require_otp;
+    }
+
+    public function grantAccessWithoutOtp(BundleRecipient $recipient): void
+    {
+        $recipient->update(['verified_at' => now()]);
+
+        RecipientAccess::grant($recipient);
+
+        Audit::log(AuditEvent::OtpVerified, [
+            'bundle' => $recipient->bundle,
+            'recipient_email' => $recipient->email,
+            'metadata' => ['skipped' => true],
+        ]);
+    }
+
     /**
      * @param  array<int, string>|string|null  $emails
      */
@@ -90,6 +120,8 @@ class BundleInvitationService
 
     public function requestOtp(BundleRecipient $recipient): void
     {
+        abort_if(! $this->requiresOtp($recipient->bundle), 404);
+
         $key = $this->rateLimitKey($recipient);
 
         if (RateLimiter::tooManyAttempts($key, config('invitation.otp_rate_limit_per_hour', 5))) {
@@ -118,6 +150,8 @@ class BundleInvitationService
 
     public function verifyOtp(BundleRecipient $recipient, string $code): void
     {
+        abort_if(! $this->requiresOtp($recipient->bundle), 404);
+
         $code = trim($code);
 
         if ($code === '') {

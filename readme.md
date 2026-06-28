@@ -1,35 +1,31 @@
-# Files Sharing
+# Secure File Send
 
->  
-> FILES SHARING VERSION 2 JUST RELEASED
->  
+Organizational file sharing built on Laravel 12 — share files securely with colleagues and external recipients, similar to WeTransfer but self-hosted under your control.
 
+Bundle and user metadata is stored in a **SQL database** (SQLite for local dev, MySQL/MariaDB for production). File binaries live on disk under `storage/content/`. Production deployments use **Microsoft SSO**, optional **approval workflows**, invitation/OTP recipient access, and an **admin panel** at `/admin`.
 
-## Description
+Each bundle provides two links:
+- a **preview link** — recipients see bundle contents and can download as ZIP (e.g. `https://files.yourcompany.com/bundle/dda2d646b6746b96ea9b?auth=965242`)
+- a **direct download link** — recipients download all files without preview (e.g. `https://files.yourcompany.com/bundle/dda2d646b6746b96ea9b/download?auth=965242`)
 
-This PHP application based on Laravel 12 allows to share files like Wetransfer. You may install it **on your own server**. It **does not require** a traditional database — bundle and user data is stored as JSON flat files in the storage folder via [Orbit](https://github.com/ryangjchandler/orbit). It is **multilingual** and comes with english, french, german and korean translations for now. You're welcome to help translating the app.
-
-This application provides two links per bundle :
-- a bundle preview link : you can send this link to your recipients who will see the bundle content. For example: http://yourdomain/bundle/dda2d646b6746b96ea9b?auth=965242. The recipient can see all the files of the bundle and download the bundle as a ZIP archive.
-- a bundle download link : you can send this link yo your recipients who will download all the files of the bundle at once (without any preview). For example: http://yourdomain/bundle/dda2d646b6746b96ea9b/download?auth=965242.
-
-Each of these links comes with an authorization code. This code is the same for the preview and the download links.
-
-The application also comes with a Laravel Artisan command as a background task who will physically remove expired bundle files of the storage disk. This command is configured to run every five minutes among the Laravel scheduled commands.
+Both links share the same authorization code. A scheduled background task removes expired bundles every five minutes.
 
 ## Features
 
-- **uploader access permission**: IP based or login/password
-- **bundle's settings**: title, description, expiration date, number max of downloads, password...
-- upload one or more files via drag and drop or via browsing your filesystem
-- ability to keep adding files to the bundle days later
+- **Microsoft SSO** (single-tenant Azure AD / Entra ID) for production
+- **Roles and groups** — admin panel, reviewer approval queue, per-group upload policies
+- **Approval workflow** — configurable per user or group before shares go out
+- **Recipient access** — invitation links with OTP for internal and external email addresses
+- **Admin panel** (`/admin`) — users, groups, bundles, branding, sharing defaults, audit log
+- **bundle settings**: title, description, expiration date, max downloads, password
+- upload one or more files via drag and drop or filesystem browse
+- ability to keep adding files to a bundle days later
 - sharing link with bundle content preview
 - download rate limiter
 - ability to download the entire bundle as ZIP archive (password protected when applicable)
-- direct download link (doesn't preview the bundle content)
-- garbage collector which removes the expired bundles as a background task
+- direct download link (no preview)
+- garbage collector removes expired bundles on a schedule
 - multilingual (EN, FR, DE and KR)
-- easy installation, **no database required**
 - secured by tokens, authentication codes and non-publicly-accessible files
 
 ## Demo
@@ -48,30 +44,289 @@ A video demo is available [on Youtube](https://youtu.be/hO4tRaZa4N4)
 
 ## Requirements
 
-Basically, nothing more than Laravel itself:
-- PHP >= 8.3
-- Ctype PHP Extension
-- OpenSSL PHP Extension
-- Mbstring PHP Extension
-- Tokenizer PHP Extension
-- XML PHP Extension
+- PHP >= 8.3 with Ctype, OpenSSL, Mbstring, Tokenizer, XML, JSON, and ZipArchive extensions
+- **Database**: SQLite (local dev) or MySQL/MariaDB (production, `utf8mb4`)
+- **Mail**: outbound SMTP for invitations, OTP, and approval notifications
+- **Queue worker** in production when `QUEUE_CONNECTION=database` (or `redis`)
+- **Cron**: `php artisan schedule:run` every minute
 
-Plus:
-- JSON PHP Extension
-- ZipArchive PHP Extension
+Frontend libraries: Dropzone.js, Alpine.js, Tailwind CSS, Day.js, Axios.
 
-The application also uses:
-- http://www.dropzonejs.com/
-- https://alpinejs.dev/
-- https://tailwindcss.com/
-- https://day.js.org/
-- https://axios-http.com/
+## Enterprise deployment
+
+Complete runbook for IT admins deploying to staging or production. Goal: another admin can operate this without tribal knowledge.
+
+### Prerequisites
+
+Before you start, confirm:
+
+- [ ] HTTPS host and reverse proxy configured
+- [ ] MySQL/MariaDB available (`utf8mb4` / `utf8mb4_unicode_ci`)
+- [ ] Outbound SMTP tested (internal and external recipients)
+- [ ] Entra ID app registration planned (single tenant)
+- [ ] Cron job for `schedule:run` scheduled
+- [ ] Persistent queue worker planned when `QUEUE_CONNECTION=database`
+- [ ] Secrets stored in your org's secrets manager (document which Entra app owns prod vs staging)
+
+### Azure app registration
+
+Single-tenant Azure AD (Entra ID) sign-in. There is **no break-glass local admin** in production — see [First admin bootstrap](#first-admin-bootstrap).
+
+1. Open [Microsoft Entra admin center](https://entra.microsoft.com/) → **App registrations** → **New registration**.
+2. Name the app (e.g. "Secure File Send").
+3. Supported account types: **Accounts in this organizational directory only (Single tenant)**.
+4. Redirect URI — platform **Web**:
+   ```
+   https://files.yourcompany.com/auth/microsoft/callback
+   ```
+   Must match `APP_URL` exactly (including `https`, no trailing slash on the base URL).
+5. Create the registration and copy these three values:
+   - **Application (client) ID** → `AZURE_CLIENT_ID`
+   - **Directory (tenant) ID** → `AZURE_TENANT_ID`
+6. Under **Certificates & secrets**, create a **Client secret** → `AZURE_CLIENT_SECRET` (store the secret value, not the secret ID).
+7. Under **API permissions**, ensure these delegated permissions are granted (admin consent if required):
+   - `openid`
+   - `profile`
+   - `email`
+   - `Microsoft Graph` → `User.Read`
+
+> **Handoff note:** Document which Entra app registration owns each environment. Store `AZURE_CLIENT_SECRET` in your secrets manager, not in chat or email.
+
+### Environment variables
+
+Copy `.env.example` to `.env` and fill in values. Grouped by deployment relevance.
+
+#### Required for production
+
+| Group | Variables | Notes |
+| ----- | --------- | ----- |
+| App | `APP_KEY`, `APP_URL`, `APP_ENV=production`, `APP_DEBUG=false` | Generate key with `php artisan key:generate` |
+| Database | `DB_CONNECTION=mysql`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | See [Production database](#production-database) |
+| SSO | `MICROSOFT_SSO_ENABLED=true`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`, `AZURE_REDIRECT_URI`, `AZURE_ALLOWED_DOMAINS` | Redirect defaults to `{APP_URL}/auth/microsoft/callback` |
+| Mail | `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_ENCRYPTION`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | Required for invitations, OTP, approval emails |
+| Queue | `QUEUE_CONNECTION=database` (or `redis`) | Requires `jobs` table from migrations + running worker |
+
+Minimal SSO block:
+
+```env
+MICROSOFT_SSO_ENABLED=true
+AZURE_CLIENT_ID=your-application-client-id
+AZURE_CLIENT_SECRET=your-client-secret
+AZURE_TENANT_ID=your-directory-tenant-id
+AZURE_REDIRECT_URI="${APP_URL}/auth/microsoft/callback"
+AZURE_ALLOWED_DOMAINS=yourcompany.com
+```
+
+Also ensure `APP_URL` matches the URL users visit and leave `UPLOAD_LIMIT_IPS` empty when SSO is enforced.
+
+#### Governance and policy
+
+| Variable | Default | Purpose |
+| -------- | ------- | ------- |
+| `APPROVAL_REQUIRED_DEFAULT` | `false` | Fallback when user has no override and no group requires approval |
+| `DEFAULT_SHARE_MODE` | `invitation` | `invitation` or `static_link` for new bundles |
+| `AZURE_ALLOWED_DOMAINS` | — | Comma-separated allowed email domains |
+| `INVITATION_LINK_DAYS` | `30` | Invitation link validity |
+| `BRANDING_SHOW_CREDIT` | `true` | Footer credit; overridable in admin Branding settings |
+
+#### Security and operations
+
+| Variable | Default | Purpose |
+| -------- | ------- | ------- |
+| `SESSION_IDLE_TIMEOUT` | `60` | Minutes of inactivity before logout |
+| `OAUTH_RATE_LIMIT_PER_MINUTE` | `10` | Microsoft OAuth callback throttle |
+| `DOWNLOAD_RATE_LIMIT_PER_MINUTE` | `30` | Bundle preview/download throttle |
+| `OTP_RATE_LIMIT_PER_HOUR` | `5` | OTP requests per recipient email |
+| `OTP_ROUTE_RATE_LIMIT_PER_HOUR` | `30` | OTP route HTTP throttle |
+| `AUDIT_RETENTION_DAYS` | `365` | Audit log retention (`0` = keep forever) |
+| `AUDIT_EXPORT_DEFAULT_FORMAT` | `csv` | `csv` or `json` for audit exports |
+
+#### Upload settings
+
+| Variable | Description |
+| -------- | ----------- |
+| `UPLOAD_MAX_FILESIZE` | Max per-file size (also configure PHP `post_max_size`, `upload_max_filesize`, `memory_limit`) |
+| `UPLOAD_MAX_FILES` | Max files per bundle |
+| `UPLOAD_PREVENT_DUPLICATES` | Block duplicate files (`true` / `false`) |
+| `HASH_MAX_FILESIZE` | Max size to hash for dedup checks |
+| `LIMIT_DOWNLOAD_RATE` | Download throttle (e.g. `100K`, `1M`) |
+| `UPLOAD_LIMIT_IPS` | IP whitelist when SSO disabled; **ignored when SSO enabled** |
+
+See also [Configuration](#configuration) for locale, timezone, and other app settings.
+
+### First-time server setup
+
+Run these steps in order on the application server:
+
+```bash
+cp .env.example .env          # fill in all required values (see above)
+php artisan key:generate
+php artisan migrate --force
+php artisan storage:link      # required for admin branding logos
+```
+
+Then configure background processes:
+
+1. **Cron** — every minute:
+   ```
+   * * * * * /usr/bin/php /path-to-your-project/artisan schedule:run >> /dev/null 2>&1
+   ```
+   Runs bundle purge (every 5 min), audit purge (daily), and other scheduled tasks.
+
+2. **Queue worker** — keep a persistent process running (Supervisor or systemd recommended):
+   ```bash
+   php artisan queue:work --sleep=3 --tries=3
+   ```
+   For Docker, the image runs `queue:work --stop-when-empty` via cron each minute.
+
+3. **Backups** — schedule regular backups of the MySQL database and `storage/content/` uploads.
+
+**Upgrading from legacy Orbit installs:** if you previously used JSON flat-file storage, run `php artisan fs:migrate:orbit` once after `migrate` to import existing data.
+
+### First admin bootstrap
+
+There is no pre-seeded admin account and no break-glass local login in production.
+
+1. Deploy the app and run migrations (see [First-time server setup](#first-time-server-setup)).
+2. First operator signs in via **Sign in with Microsoft** at `/login`.
+   - A user record is created automatically with the **`user` role only** and **no groups**.
+3. On the server (requires shell access), promote the first admin:
+   ```bash
+   php artisan fs:user:list
+   php artisan fs:user:promote you@yourcompany.com --role=admin
+   php artisan fs:user:promote you@yourcompany.com --role=reviewer   # if they should receive approval emails
+   ```
+4. Sign in again and open `/admin` to assign roles, groups, and branding.
+5. All subsequent role and group changes can be done in `/admin` or via CLI.
+
+### Roles
+
+Roles are **not synced from Entra groups**. Assign them manually in `/admin` or with Artisan.
+
+| Role | Slug | Assigned via | Capabilities |
+| ---- | ---- | ------------ | ------------ |
+| User | `user` | Automatic on first SSO sign-in | Upload, manage own bundles |
+| Reviewer | `reviewer` | Admin or CLI | `/approval` queue; **receives approval notification emails** |
+| Admin | `admin` | Admin or CLI (bootstrap) | `/admin` Filament panel |
+
+**Important nuances:**
+
+- Roles are **additive** — every account always keeps `user`.
+- **Admin can use the approval UI** even without the reviewer role, but **approval emails only go to users with the `reviewer` role**. Assign `reviewer` to anyone who should be notified of pending submissions.
+- Suggested org pattern: 1–2 admins (platform owners), 2–3 reviewers (compliance/IT).
+
+CLI reference:
+
+```bash
+php artisan fs:user:list
+php artisan fs:user:promote email@company.com --role=reviewer
+php artisan fs:user:revoke email@company.com --role=admin
+```
+
+### Groups and approval policy
+
+**Groups are app-local policy buckets** — they are **not** synced from Azure AD / Entra group membership. After SSO sign-in, users have **no group** until an admin assigns one in `/admin`.
+
+```mermaid
+flowchart TD
+    signIn[SSO sign-in] --> jitUser["User created: role=user, no groups"]
+    adminAssign[Admin assigns groups in /admin]
+    jitUser --> adminAssign
+    adminAssign --> policy{ApprovalPolicy}
+    userOverride["User requires_approval override"] --> policy
+    groupFlag["Any group requires_approval=true"] --> policy
+    envDefault["APPROVAL_REQUIRED_DEFAULT"] --> policy
+    policy -->|true| queue["pending_approval → reviewer pool"]
+    policy -->|false| publish["Bundle published immediately"]
+```
+
+Each group controls two policies:
+
+| Field | Effect |
+| ----- | ------ |
+| `requires_approval` | Uploaders in this group must get reviewer approval before links/invitations go out |
+| `allow_static_links` | Members may use static-link share mode (less secure; invitation mode is default) |
+
+**Seeded groups** (created by migrations/seeders):
+
+| Slug | Approval required | Static links |
+| ---- | ----------------- | ------------ |
+| `default` | No | Allowed |
+| `approval-required` | Yes | Not allowed |
+
+**Approval policy resolution** (first match wins):
+
+1. Per-user `requires_approval` override (if set on the user record) — wins
+2. Any group the user belongs to with `requires_approval=true` — requires approval
+3. Else `APPROVAL_REQUIRED_DEFAULT` env fallback
+
+When approval is required, the bundle enters `pending_approval` status. Users in the **reviewer pool** (anyone with the `reviewer` role) are emailed and can approve or deny at `/approval`.
+
+**Operator tasks:**
+
+- Assign new users to a group promptly (e.g. `default` or `approval-required` per org policy)
+- Use per-user approval override only for exceptions
+- Manage membership in `/admin` → **Users** or **Groups**
+
+### Admin panel
+
+Admins manage the organization from `/admin` (Filament). Sign in with an account that has the `admin` role.
+
+| Section | Purpose |
+| -------- | -------- |
+| **Users** | Search users; edit roles, group membership, and per-user approval override |
+| **Groups** | Create/edit groups; toggle approval requirement and static-link policy; assign members |
+| **Bundles** | View all shares with filters; revoke, extend expiry, or permanently delete |
+| **Reviewers** | Read-only list of users in the reviewer pool |
+| **Branding** | App name, logo, colors, footer text, and legal URLs (stored in DB; applied without redeploy) |
+| **Sharing** | Default share mode (invitation vs static link) for new bundles |
+
+Ensure `php artisan storage:link` has been run so uploaded logos are served from `public/storage`.
+
+### Production database
+
+SQLite works for local development. For production, use MySQL (or MariaDB):
+
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=filesharing
+DB_USERNAME=filesharing
+DB_PASSWORD=your-secure-password
+```
+
+Recommended: charset/collation `utf8mb4` / `utf8mb4_unicode_ci`, dedicated DB user with minimal privileges, regular backups of DB + `storage/content/`.
+
+### Queue workers
+
+Mail (invitations, OTP, approval notifications) is queued for async delivery:
+
+```env
+QUEUE_CONNECTION=database   # or redis
+```
+
+Run migrations (includes `jobs` table), then start a worker (see [First-time server setup](#first-time-server-setup)).
+
+### Ongoing operations
+
+Day-2 admin checklist:
+
+- Add or remove reviewers and admins (`/admin` or `fs:user:promote` / `fs:user:revoke`)
+- Move users between groups as org policy changes
+- Update branding and sharing defaults in `/admin`
+- Monitor audit log and run exports as needed
+- Verify queue worker and cron are running
+- Back up MySQL and `storage/content/` on schedule
+- Pre-production sign-off: run [docs/SMOKE_TEST.md](docs/SMOKE_TEST.md)
 
 ## Installation
 
+For production organizational deployment, follow [Enterprise deployment](#enterprise-deployment) above. The sections below cover Docker and standalone install paths.
+
 ### Docker
 
-You may now install FileSharing via Docker. 
+You may install FileSharing via Docker.
 See [https://hub.docker.com/r/axeloz/filesharing](https://hub.docker.com/r/axeloz/filesharing)
 
 ```
@@ -91,12 +346,15 @@ docker run -d \
 -e LIMIT_DOWNLOAD_RATE="100K" \
 axeloz/filesharing:latest
 ```
+
 - use the `-v` option to bind your local storage to the docker instance (persisting data)
 - adapt the `-p` option to listen to the port you need
 - you may pass env variables with the `-e` option
 - `APP_KEY` is required at container startup (generate with `php artisan key:generate --show`)
 - the Docker image runs the Laravel scheduler internally via cron
 - you can use a reverse proxy for SSL termination (example: nginx)
+
+For enterprise features (SSO, MySQL, mail, queue), also pass `DB_*`, `AZURE_*`, and `MAIL_*` variables and run migrations inside the container. See [Enterprise deployment](#enterprise-deployment).
 
 Simple config for Nginx:
 
@@ -144,53 +402,44 @@ volumes:
     driver: local
 ```
 
-
 ### Standalone
 
-- configure your domain name. For example: files.yourdomain.com
+- configure your domain name (e.g. files.yourdomain.com)
 - clone the repo or download the sources into the webroot folder
 - configure your webserver to point your domain name to the `./public` folder
 - run `composer install`
 - run `npm ci`
 - run `npm run build`
-- make sure that the PHP process has write permission on the `./storage` folder
-- run `cp .env.example .env` and edit `.env` to fit your needs
-- generate the Laravel KEY: `php artisan key:generate`
-- (optional) you may create your first user `php artisan fs:user:create`
-- start the Laravel scheduler (it will delete expired bundles of the storage). For example `* * * * * /usr/bin/php /path-to-your-project/artisan schedule:run >> /dev/null 2>&1`
-- (optional) to purge bundles manually, run `php artisan fs:bundle:purge`
+- make sure the PHP process has write permission on the `./storage` folder
+- run `cp .env.example .env` and edit `.env` (see [Environment variables](#environment-variables))
+- generate the Laravel key: `php artisan key:generate`
+- run database migrations: `php artisan migrate` (add `--force` in production)
+- run `php artisan storage:link` (required for admin branding logos)
+- for production: configure MySQL, mail, SSO, and queue — see [Enterprise deployment](#enterprise-deployment)
+- start the Laravel scheduler: `* * * * * /usr/bin/php /path-to-your-project/artisan schedule:run >> /dev/null 2>&1`
+- start a queue worker when `QUEUE_CONNECTION=database` (see [Queue workers](#queue-workers))
+- (local dev only, SSO disabled) create a local user: `php artisan fs:user:create`
+- (optional) purge expired bundles manually: `php artisan fs:bundle:purge`
 
-
-Use your browser to navigate to your domain name (example: files.yourdomain.com) and **that's it**.
+Use your browser to navigate to your domain name and sign in.
 
 ## Configuration
 
-In order to configure your application, copy the .env.example file into .env. Then edit the .env file.
+Copy `.env.example` to `.env` and edit. For production deployment, see the full [Environment variables](#environment-variables) table in the enterprise section.
 
 | Configuration | Description |
 | ------------- | ----------- |
-| `APP_NAME`    | the title of the application |
-| `APP_ENV`     | change this to `production` when in production (`local` otherwise) |
-| `APP_DEBUG` | change this to `false` when in production (`true` otherwise) |
-| `APP_TIMEZONE` | change this to your current timezone |
-| `APP_LOCALE` | change this to "fr", "en", "de" or "kr" |
-| `UPLOAD_PREVENT_DUPLICATES` | Should the app block duplicate files (true / false) |
-| `HASH_MAX_FILESIZE`| max size for hashing file to check for duplicate files. If files are bigger than limit, they will not be hashed. Find the best value for better cpu / memory consumption |
-| `UPLOAD_MAX_FILES` | (*optional*) maximal number of files per bundle |
-| `UPLOAD_MAX_FILESIZE` | (*optional*) change this to the value you want (K, M, G, T, ...). Attention : you must configure your PHP settings too (`post_max_size`, `upload_max_filesize` and `memory_limit`). When missing, using PHP lowest configuration |
-| `UPLOAD_LIMIT_IPS` | (*optional*) Comma-separated IPs allowed to upload without login. Ignored when `MICROSOFT_SSO_ENABLED=true`. Different formats supported: full IP (192.168.10.2), wildcard (192.168.10.*), CIDR (192.168.10/24), or range (192.168.10.0-192.168.10.10). Leave empty when SSO is enforced. |
-| `LIMIT_DOWNLOAD_RATE` | (*optional*) if set, limit the download rate. For instance, you may set `LIMIT_DOWNLOAD_RATE=100K` to limit download rate to 100Ko/s |
-| `MICROSOFT_SSO_ENABLED` | Set to `true` for Azure AD sign-in (production). See [Microsoft SSO setup](#microsoft-sso-setup). |
-| `AZURE_CLIENT_ID` | Azure app registration client ID |
-| `AZURE_CLIENT_SECRET` | Azure app registration client secret |
-| `AZURE_TENANT_ID` | Azure directory (tenant) ID |
-| `AZURE_REDIRECT_URI` | OAuth callback URL (default: `{APP_URL}/auth/microsoft/callback`) |
-| `AZURE_ALLOWED_DOMAINS` | Comma-separated email domains allowed to sign in |
-| `BRANDING_SHOW_CREDIT` | Show the "Made with love" project credit in the footer (`true` / `false`). Can be overridden in the admin Branding settings. |
+| `APP_NAME` | Application title |
+| `APP_ENV` | `production` in production, `local` otherwise |
+| `APP_DEBUG` | `false` in production |
+| `APP_TIMEZONE` | Your timezone |
+| `APP_LOCALE` | `en`, `fr`, `de`, or `kr` |
+
+Upload, SSO, mail, queue, approval, and security variables are documented under [Environment variables](#environment-variables).
 
 ## Authentication
 
-Upload access can be controlled in three ways:
+Upload access is controlled in one of three modes:
 
 | Mode | Use case |
 | ---- | -------- |
@@ -202,191 +451,46 @@ Upload access can be controlled in three ways:
 
 When Microsoft SSO is enabled (`MICROSOFT_SSO_ENABLED=true`):
 
-- Users sign in with their organization Microsoft account only — there is no password login in the web UI.
+- Users sign in with their organization Microsoft account only — no password login in the web UI.
 - `UPLOAD_LIMIT_IPS` is ignored; unauthenticated users cannot upload.
-- New users are created automatically on first sign-in with the `user` role. An admin must assign roles and groups via the [admin panel](#admin-panel) at `/admin` (or CLI for bootstrap).
+- New users are created on first sign-in with the `user` role only. An admin must assign roles and groups — see [Roles](#roles) and [Groups and approval policy](#groups-and-approval-policy).
 
-### Microsoft SSO setup
+### Verify SSO
 
-Single-tenant Azure AD (Entra ID) sign-in. There is no break-glass local admin account in production.
-
-#### 1. Register an app in Azure
-
-1. Open [Microsoft Entra admin center](https://entra.microsoft.com/) → **App registrations** → **New registration**.
-2. Name the app (e.g. "Secure File Send").
-3. Supported account types: **Accounts in this organizational directory only (Single tenant)**.
-4. Redirect URI — platform **Web**:
-   ```
-   https://files.yourcompany.com/auth/microsoft/callback
-   ```
-   Must match `APP_URL` exactly (including `https` and no trailing slash on the base URL).
-5. Create the registration and note:
-   - **Application (client) ID** → `AZURE_CLIENT_ID`
-   - **Directory (tenant) ID** → `AZURE_TENANT_ID`
-6. Under **Certificates & secrets**, create a **Client secret** → `AZURE_CLIENT_SECRET`.
-7. Under **API permissions**, ensure these delegated permissions are granted (admin consent if required):
-   - `openid`
-   - `profile`
-   - `email`
-   - `Microsoft Graph` → `User.Read`
-
-#### 2. Configure environment variables
-
-Add to `.env` (see `.env.example`):
-
-```env
-MICROSOFT_SSO_ENABLED=true
-AZURE_CLIENT_ID=your-application-client-id
-AZURE_CLIENT_SECRET=your-client-secret
-AZURE_TENANT_ID=your-directory-tenant-id
-AZURE_REDIRECT_URI="${APP_URL}/auth/microsoft/callback"
-AZURE_ALLOWED_DOMAINS=yourcompany.com
-```
-
-| Variable | Description |
-| -------- | ----------- |
-| `MICROSOFT_SSO_ENABLED` | Set to `true` to enable SSO and disable password login |
-| `AZURE_CLIENT_ID` | Application (client) ID from the app registration |
-| `AZURE_CLIENT_SECRET` | Client secret value (not the secret ID) |
-| `AZURE_TENANT_ID` | Directory (tenant) ID — only users from this tenant can sign in |
-| `AZURE_REDIRECT_URI` | OAuth callback URL; defaults to `{APP_URL}/auth/microsoft/callback` |
-| `AZURE_ALLOWED_DOMAINS` | Comma-separated list of allowed email domains (e.g. `yourcompany.com,subsidiary.com`) |
-
-Also ensure:
-
-- `APP_URL` matches the URL users visit and the Azure redirect URI base (e.g. `https://files.yourcompany.com`).
-- `UPLOAD_LIMIT_IPS` is empty or unset when SSO is enforced.
-
-#### 3. Run migrations
-
-SSO requires the SQL user schema (`email`, `azure_oid`, roles, etc.):
-
-```bash
-php artisan migrate
-```
-
-#### 4. Assign roles after first sign-in
-
-The first time a user signs in, an account is created with the default `user` role. Assign additional roles with Artisan:
-
-```bash
-# List users (shows all assigned roles)
-php artisan fs:user:list
-
-# Create a local user (bootstrap / dev only — not for production login)
-php artisan fs:user:create
-
-# Role is set at create time; edit via admin panel (/admin) or CLI
-php artisan fs:user:create adminuser --role=admin
-
-# Assign a role to an existing user (username or email; roles are additive)
-php artisan fs:user:promote you@yourcompany.com --role=admin
-php artisan fs:user:promote you@yourcompany.com --role=reviewer
-
-# Revoke an elevated role (user role cannot be revoked)
-php artisan fs:user:revoke you@yourcompany.com --role=admin
-```
-
-Users can hold multiple roles (e.g. `user` + `admin` + `reviewer`). Every account always retains the `user` role. Manage roles in the admin panel at `/admin` or via CLI:
-
-```bash
-php artisan fs:user:promote you@yourcompany.com --role=admin
-php artisan fs:user:revoke you@yourcompany.com --role=reviewer
-```
-
-#### 5. Verify
+After completing [Azure app registration](#azure-app-registration) and [First admin bootstrap](#first-admin-bootstrap):
 
 1. Visit `/login` — you should see **Sign in with Microsoft** (no password form).
 2. Sign in with an account from your tenant and allowed domain.
 3. Confirm you land on the homepage and can create uploads.
 4. Test rejection: an account from another tenant or disallowed email domain should return to `/login` with an error message.
 
-#### Local development without SSO
+### Local development without SSO
 
 Set `MICROSOFT_SSO_ENABLED=false` in `.env`, then use IP whitelist and/or local users:
 
 ```bash
-php artisan fs:user:create
+php artisan migrate
+php artisan fs:user:create adminuser --role=admin
 ```
 
 Password login and IP bypass work only when SSO is disabled.
 
-### Admin panel
+### Rate limiting and security
 
-Admins can manage the organization from `/admin` (Filament). Sign in with an account that has the `admin` role, then open the panel from the footer link or directly at `/admin`.
+Security headers (CSP, `X-Frame-Options`, etc.) are applied globally. Session cookies use `Secure` in production. Rate limits are configurable via `.env` — see [Security and operations](#security-and-operations).
 
-| Section | Purpose |
-| -------- | -------- |
-| **Users** | Search users; edit role, group membership, and per-user approval override |
-| **Groups** | Create/edit groups; toggle approval requirement and static-link policy; assign members |
-| **Bundles** | View all shares with filters; revoke, extend expiry, or permanently delete |
-| **Reviewers** | Read-only list of users in the reviewer pool |
-| **Branding** | App name, logo, colors, footer text, and legal URLs (stored in `settings`; applied without redeploy) |
-| **Sharing** | Default share mode (invitation vs static link) for new bundles |
-
-Ensure `php artisan storage:link` has been run so uploaded logos are served from `public/storage`.
-
-### Production database (MySQL)
-
-SQLite works for local development and small single-node deployments. For production, use MySQL (or MariaDB):
-
-```env
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=filesharing
-DB_USERNAME=filesharing
-DB_PASSWORD=your-secure-password
-```
-
-Recommended MySQL settings:
-
-- Charset/collation: `utf8mb4` / `utf8mb4_unicode_ci`
-- Run migrations: `php artisan migrate --force`
-- Schedule regular backups of the database and `storage/` uploads
-- Use a dedicated database user with minimal privileges
-
-SQLite remains valid for dev, CI, and small installs where a separate database server is not required.
-
-### Queue workers
-
-Mail (invitations, OTP, approval notifications) is queued for async delivery. Set a queue driver in production:
-
-```env
-QUEUE_CONNECTION=database   # or redis
-```
-
-Run migrations (includes `jobs` table), then start a worker:
-
-```bash
-php artisan queue:work --sleep=3 --tries=3
-```
-
-For Docker, the image runs `queue:work --stop-when-empty` via cron each minute. For production VMs, use Supervisor or systemd to keep a worker process running.
-
-### Rate limiting & security
-
-Configurable via `.env`:
-
-| Variable | Default | Purpose |
-| -------- | ------- | ------- |
-| `OAUTH_RATE_LIMIT_PER_MINUTE` | 10 | Microsoft OAuth callback |
-| `DOWNLOAD_RATE_LIMIT_PER_MINUTE` | 30 | Bundle preview/download |
-| `OTP_RATE_LIMIT_PER_HOUR` | 5 | OTP request per recipient email |
-| `SESSION_IDLE_TIMEOUT` | 60 | Minutes of inactivity before logout |
-
-Security headers (CSP, `X-Frame-Options`, etc.) are applied globally. Session cookies use `Secure` in production. See [docs/SMOKE_TEST.md](docs/SMOKE_TEST.md) for pre-release QA checklist.
+Pre-release QA: [docs/SMOKE_TEST.md](docs/SMOKE_TEST.md)
 
 ## Known issues
 
-If you are using Nginx, you might be required to do additional setup in order to increase the upload max size. Check the Nginx's documentation for `client_max_body_size`.
+If you are using Nginx, you might be required to do additional setup in order to increase the upload max size. Check the Nginx documentation for `client_max_body_size`.
 
 ## Development
 
 To modify the sources, use Vite for frontend asset compilation:
-- configure your domain name. For example: files.yourdomain.com
+- configure your domain name (e.g. files.yourdomain.com)
 - clone the repo or download the sources into the webroot folder
-- configure your webserver to point your domain name to the public/ folder
+- configure your webserver to point your domain name to the `public/` folder
 - run `composer install`
 - run `npm install`
 - run `npm run dev` to recompile assets when changed
@@ -405,8 +509,10 @@ composer lint
 There are many ideas to come. You are welcome to **participate**.
 - more testing on heavy files
 - background process for creating Zips asynchronously after completion of the bundle
-- invitation to external users to upload file into existing bundle 
+- invitation to external users to upload file into existing bundle
 - customizable / white labeling (logo, name, terms of service, footer ...)
+
+Internal implementation tracking: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Licence
 

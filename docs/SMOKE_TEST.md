@@ -2,6 +2,8 @@
 
 Manual QA script for enterprise deployment sign-off. Run against staging before production release.
 
+**Deployment runbook:** [Enterprise deployment](../readme.md#enterprise-deployment) in `readme.md`
+
 **Environment:** staging URL, MySQL, Microsoft SSO enabled, mail configured, queue worker running.
 
 ---
